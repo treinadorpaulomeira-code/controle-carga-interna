@@ -156,8 +156,8 @@
 
   .acoes-cell{white-space:nowrap;}
   .acoes-cell button{margin-right:6px;padding:5px 10px;font-size:12px;}
-  .btn-excluir-sessao{background:var(--red);color:#fff;}
-  .btn-excluir-sessao:hover{opacity:.85;}
+  .btn-excluir-sessao,.btn-excluir-anotacao{background:var(--red);color:#fff;}
+  .btn-excluir-sessao:hover,.btn-excluir-anotacao:hover{opacity:.85;}
 
   @media (max-width:760px){
     .app{flex-direction:column;}
@@ -199,6 +199,7 @@
 
   <div class="app">
     <nav class="sidebar hidden" id="sidebarTreinador">
+      <div class="aluno-item" id="btnRelatorioGeral" style="font-weight:600;color:var(--gold-light);">📊 Relatório geral</div>
       <h3>Alunos</h3>
       <div id="listaAlunos"></div>
       <button class="secondary small" id="btnNovoAluno" style="width:100%;margin-top:10px;">+ Novo aluno</button>
@@ -258,6 +259,37 @@
     <div class="actions">
       <button class="secondary" id="btnCancelarExclusao">Cancelar</button>
       <button id="btnConfirmarExclusao" style="background:var(--red);color:#fff;">Excluir</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal editar anotação -->
+<div class="modal-bg hidden" id="modalEditarAnotacao">
+  <div class="modal">
+    <h3>Editar anotação</h3>
+    <div class="field"><label>Exercício*</label><input id="eExercicio"></div>
+    <div class="field"><label>Séries</label><input id="eSeries"></div>
+    <div class="field"><label>Reps</label><input id="eReps"></div>
+    <div class="field"><label>Carga</label><input id="eCarga"></div>
+    <div class="field"><label>Descanso</label><input id="eDescanso"></div>
+    <div class="field"><label>Observação (opcional)</label><input id="eObservacao"></div>
+    <div id="editarAnotacaoMsg"></div>
+    <div class="actions">
+      <button class="secondary" id="btnCancelarEdicaoAnotacao">Cancelar</button>
+      <button id="btnSalvarEdicaoAnotacao">Salvar alterações</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal excluir anotação -->
+<div class="modal-bg hidden" id="modalExcluirAnotacao">
+  <div class="modal">
+    <h3>Excluir anotação?</h3>
+    <p id="excluirAnotacaoInfo" style="color:var(--text-dim);font-size:14px;margin-top:0;"></p>
+    <div id="excluirAnotacaoMsg"></div>
+    <div class="actions">
+      <button class="secondary" id="btnCancelarExclusaoAnotacao">Cancelar</button>
+      <button id="btnConfirmarExclusaoAnotacao" style="background:var(--red);color:#fff;">Excluir</button>
     </div>
   </div>
 </div>
@@ -387,7 +419,7 @@ async function iniciarApp() {
   if (sessao.role === 'treinador') {
     document.getElementById('sidebarTreinador').classList.remove('hidden');
     await carregarAlunos();
-    renderVisaoGeralTreinador();
+    await renderVisaoGeralTreinador();
   } else {
     document.getElementById('sidebarTreinador').classList.add('hidden');
     alunoAtual = sessao.usuario;
@@ -467,9 +499,12 @@ document.getElementById('btnAbrirBorgEdicao').addEventListener('click', () => {
 
 /* ============================= EDITAR / EXCLUIR SESSÃO ============================= */
 let sessoesAtuais = [];
+let anotacoesAtuais = [];
 let contextoSessaoAtual = null; // { usuarioAluno, souTreinador } — para saber quem recarregar depois de editar/excluir
 let sessaoEditandoId = null;
 let sessaoExcluindoId = null;
+let anotacaoEditandoId = null;
+let anotacaoExcluindoId = null;
 
 async function recarregarPainelAtual() {
   if (!contextoSessaoAtual) return;
@@ -562,6 +597,107 @@ document.getElementById('btnConfirmarExclusao').addEventListener('click', async 
   }
 });
 
+/* ============================= ANOTAÇÕES DE TREINO (exercício/séries/reps/carga/descanso) ============================= */
+async function salvarAnotacao(usuarioAluno, souTreinador) {
+  const exercicio = document.getElementById('nExercicio').value.trim();
+  const series = document.getElementById('nSeries').value.trim();
+  const reps = document.getElementById('nReps').value.trim();
+  const carga = document.getElementById('nCarga').value.trim();
+  const descanso = document.getElementById('nDescanso').value.trim();
+  const observacao = document.getElementById('nObservacao').value.trim();
+  const msgEl = document.getElementById('msgAnotacao');
+  const btn = document.getElementById('btnSalvarAnotacao');
+
+  msgEl.innerHTML = '';
+  if (!exercicio) {
+    msgEl.innerHTML = '<div class="msg-erro">Informe o nome do exercício.</div>';
+    return;
+  }
+
+  btn.disabled = true;
+  try {
+    const payload = { action: 'addAnotacao', exercicio, series, reps, carga, descanso, observacao };
+    if (souTreinador) payload.aluno_usuario = usuarioAluno;
+    const resp = await chamarApi(payload);
+    if (!resp.ok) { msgEl.innerHTML = '<div class="msg-erro">' + escapeHtml(resp.erro) + '</div>'; return; }
+    const nomeAtual = souTreinador ? (alunos.find(a => a.usuario === usuarioAluno) || {}).nome : sessao.nome;
+    await renderPainelAluno(usuarioAluno, nomeAtual || usuarioAluno, souTreinador);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function abrirEdicaoAnotacao(id) {
+  const a = anotacoesAtuais.find(x => String(x.id) === String(id));
+  if (!a) return;
+  anotacaoEditandoId = id;
+
+  document.getElementById('eExercicio').value = a.exercicio || '';
+  document.getElementById('eSeries').value = a.series || '';
+  document.getElementById('eReps').value = a.reps || '';
+  document.getElementById('eCarga').value = a.carga || '';
+  document.getElementById('eDescanso').value = a.descanso || '';
+  document.getElementById('eObservacao').value = a.observacao || '';
+  document.getElementById('editarAnotacaoMsg').innerHTML = '';
+
+  document.getElementById('modalEditarAnotacao').classList.remove('hidden');
+}
+
+document.getElementById('btnCancelarEdicaoAnotacao').addEventListener('click', () => {
+  document.getElementById('modalEditarAnotacao').classList.add('hidden');
+});
+
+document.getElementById('btnSalvarEdicaoAnotacao').addEventListener('click', async () => {
+  const msgEl = document.getElementById('editarAnotacaoMsg');
+  const exercicio = document.getElementById('eExercicio').value.trim();
+  const series = document.getElementById('eSeries').value.trim();
+  const reps = document.getElementById('eReps').value.trim();
+  const carga = document.getElementById('eCarga').value.trim();
+  const descanso = document.getElementById('eDescanso').value.trim();
+  const observacao = document.getElementById('eObservacao').value.trim();
+  const btn = document.getElementById('btnSalvarEdicaoAnotacao');
+
+  msgEl.innerHTML = '';
+  if (!exercicio) { msgEl.innerHTML = '<div class="msg-erro">Informe o nome do exercício.</div>'; return; }
+
+  btn.disabled = true;
+  try {
+    const resp = await chamarApi({ action: 'editarAnotacao', id: anotacaoEditandoId, exercicio, series, reps, carga, descanso, observacao });
+    if (!resp.ok) { msgEl.innerHTML = '<div class="msg-erro">' + escapeHtml(resp.erro) + '</div>'; return; }
+    document.getElementById('modalEditarAnotacao').classList.add('hidden');
+    await recarregarPainelAtual();
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function abrirExclusaoAnotacao(id) {
+  const a = anotacoesAtuais.find(x => String(x.id) === String(id));
+  if (!a) return;
+  anotacaoExcluindoId = id;
+  document.getElementById('excluirAnotacaoInfo').textContent = 'Anotação de "' + a.exercicio + '"';
+  document.getElementById('excluirAnotacaoMsg').innerHTML = '';
+  document.getElementById('modalExcluirAnotacao').classList.remove('hidden');
+}
+
+document.getElementById('btnCancelarExclusaoAnotacao').addEventListener('click', () => {
+  document.getElementById('modalExcluirAnotacao').classList.add('hidden');
+});
+
+document.getElementById('btnConfirmarExclusaoAnotacao').addEventListener('click', async () => {
+  const msgEl = document.getElementById('excluirAnotacaoMsg');
+  const btn = document.getElementById('btnConfirmarExclusaoAnotacao');
+  btn.disabled = true;
+  try {
+    const resp = await chamarApi({ action: 'excluirAnotacao', id: anotacaoExcluindoId });
+    if (!resp.ok) { msgEl.innerHTML = '<div class="msg-erro">' + escapeHtml(resp.erro) + '</div>'; return; }
+    document.getElementById('modalExcluirAnotacao').classList.add('hidden');
+    await recarregarPainelAtual();
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 /* ============================= ALUNOS (visão treinador) ============================= */
 async function carregarAlunos() {
   const data = await chamarApi({ action: 'listAlunos' });
@@ -579,6 +715,8 @@ function renderListaAlunos() {
     div.addEventListener('click', () => selecionarAluno(a));
     el.appendChild(div);
   });
+  const btnRel = document.getElementById('btnRelatorioGeral');
+  btnRel.classList.toggle('active', alunoAtual === null);
 }
 
 async function selecionarAluno(aluno) {
@@ -587,6 +725,13 @@ async function selecionarAluno(aluno) {
   renderListaAlunos();
   await renderPainelAluno(aluno.usuario, aluno.nome, true);
 }
+
+document.getElementById('btnRelatorioGeral').addEventListener('click', async () => {
+  alunoAtual = null;
+  document.getElementById('painelAluno').innerHTML = '';
+  renderListaAlunos();
+  await renderVisaoGeralTreinador();
+});
 
 document.getElementById('btnNovoAluno').addEventListener('click', () => {
   document.getElementById('novoAlunoNome').value = '';
@@ -610,15 +755,66 @@ document.getElementById('btnSalvarNovoAluno').addEventListener('click', async ()
   await carregarAlunos();
 });
 
-/* ============================= VISÃO GERAL (treinador, sem aluno selecionado) ============================= */
-function renderVisaoGeralTreinador() {
+/* ============================= VISÃO GERAL (treinador, sem aluno selecionado) — RELATÓRIO GERAL ============================= */
+async function renderVisaoGeralTreinador() {
   document.getElementById('painelAluno').innerHTML = '';
   const el = document.getElementById('visaoGeral');
   if (alunos.length === 0) {
     el.innerHTML = '<div class="empty-state">Nenhum aluno cadastrado ainda. Clique em "+ Novo aluno" para começar.</div>';
     return;
   }
-  el.innerHTML = '<div class="info-note">Selecione um aluno na lista à esquerda para lançar sessões e ver os gráficos de carga interna (Razão Agudo:Crônica, Monotonia e Strain).</div>';
+
+  el.innerHTML = '<p style="color:var(--text-dim)">Carregando relatório geral...</p>';
+
+  const resp = await chamarApi({ action: 'getSessoesTodos' });
+  const todasSessoes = resp.ok ? resp.sessoes : [];
+
+  const porAluno = {};
+  todasSessoes.forEach(s => {
+    if (!porAluno[s.aluno_usuario]) porAluno[s.aluno_usuario] = [];
+    porAluno[s.aluno_usuario].push(s);
+  });
+
+  const mesAtual = hojeISO().slice(0, 7); // YYYY-MM
+  const PRIORIDADE = { vermelho: 0, dourado: 1, verde: 2, neutro: 3 };
+
+  const linhas = alunos.map(a => {
+    const sessoesDoAluno = porAluno[a.usuario] || [];
+    const analise = analisarCargaInterna(sessoesDoAluno);
+    const ultima = analise.vazio ? null : analise.semanas[analise.semanas.length - 1];
+    const cargaMes = sessoesDoAluno
+      .filter(s => s.data.slice(0, 7) === mesAtual)
+      .reduce((soma, s) => soma + Number(s.carga_ua), 0);
+
+    const cMono = classificarMonotonia(ultima ? ultima.monotonia : null);
+    const cStrain = classificarStrain(ultima ? ultima.strain : null);
+    const cAcwr = classificarAcwr(ultima ? ultima.acwr : null);
+
+    return { aluno: a, ultima, cargaMes: round2(cargaMes), cMono, cStrain, cAcwr };
+  });
+
+  linhas.sort((x, y) => PRIORIDADE[x.cAcwr.cor] - PRIORIDADE[y.cAcwr.cor]);
+
+  el.innerHTML = `
+    <h2 style="color:var(--gold-light);margin-top:0;">Relatório geral</h2>
+    <div class="info-note">Panorama de todos os alunos: carga da semana atual, carga do mês e classificação de Monotonia, Strain e ACWR. Clique em um aluno na lista à esquerda para ver o detalhe completo.</div>
+    <div class="chart-wrap">
+      <table>
+        <thead><tr>
+          <th>Aluno</th><th>Carga semana atual (u.a.)</th><th>Carga do mês (u.a.)</th>
+          <th>Monotonia</th><th>Strain</th><th>ACWR</th>
+        </tr></thead>
+        <tbody>${linhas.map(l => `<tr>
+          <td>${escapeHtml(l.aluno.nome)}${l.aluno.ativo ? '' : ' <span class="tag-inativo">inativo</span>'}</td>
+          <td>${l.ultima ? l.ultima.cargaSemanal : '—'}</td>
+          <td>${l.cargaMes || '—'}</td>
+          <td>${l.ultima && l.ultima.monotonia !== null ? l.ultima.monotonia : '—'} <span class="badge ${l.cMono.cor}">${l.cMono.texto}</span></td>
+          <td>${l.ultima && l.ultima.strain !== null ? l.ultima.strain : '—'} <span class="badge ${l.cStrain.cor}">${l.cStrain.texto}</span></td>
+          <td>${l.ultima && l.ultima.acwr !== null ? l.ultima.acwr : '—'} <span class="badge ${l.cAcwr.cor}">${l.cAcwr.texto}</span></td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+  `;
 }
 
 /* ============================= PAINEL DO ALUNO (sessões + gráficos) ============================= */
@@ -626,8 +822,12 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
   const painel = document.getElementById('painelAluno');
   painel.innerHTML = '<p style="color:var(--text-dim)">Carregando dados de ' + escapeHtml(nomeAluno) + '...</p>';
 
-  const resp = await chamarApi({ action: 'getSessoes', aluno_usuario: usuarioAluno });
+  const [resp, respAnot] = await Promise.all([
+    chamarApi({ action: 'getSessoes', aluno_usuario: usuarioAluno }),
+    chamarApi({ action: 'getAnotacoes', aluno_usuario: usuarioAluno }),
+  ]);
   const sessoes = resp.ok ? resp.sessoes : [];
+  const anotacoes = respAnot.ok ? respAnot.anotacoes : [];
   const analise = analisarCargaInterna(sessoes);
 
   painel.innerHTML = `
@@ -668,9 +868,37 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
         </tr>`).join('') || '<tr><td colspan="6" style="color:var(--text-dim)">Nenhuma sessão registrada ainda.</td></tr>'}</tbody>
       </table>
     </div>
+
+    <div class="chart-wrap">
+      <h3>Anotações de treino</h3>
+      <div class="info-note">Espaço livre para anotar exercícios, séries, reps, carga e descanso — só para consulta, não entra em nenhum cálculo.</div>
+
+      <form class="session-form" id="formAnotacao">
+        <div class="field full"><label>Exercício*</label><input id="nExercicio" placeholder="ex: Agachamento livre"></div>
+        <div class="field"><label>Séries</label><input id="nSeries" placeholder="ex: 4"></div>
+        <div class="field"><label>Reps</label><input id="nReps" placeholder="ex: 10"></div>
+        <div class="field"><label>Carga</label><input id="nCarga" placeholder="ex: 80kg"></div>
+        <div class="field"><label>Descanso</label><input id="nDescanso" placeholder="ex: 90s"></div>
+        <div class="field full"><label>Observação (opcional)</label><input id="nObservacao" placeholder="ex: cadência 3010, foco na técnica..."></div>
+        <div class="field"><button id="btnSalvarAnotacao" style="width:100%">Adicionar anotação</button></div>
+        <div class="full" id="msgAnotacao"></div>
+      </form>
+
+      <table>
+        <thead><tr><th>Exercício</th><th>Séries</th><th>Reps</th><th>Carga</th><th>Descanso</th><th>Observação</th><th>Ações</th></tr></thead>
+        <tbody>${anotacoes.slice().reverse().map(a => `<tr>
+          <td>${escapeHtml(a.exercicio||'')}</td><td>${escapeHtml(a.series||'')}</td><td>${escapeHtml(a.reps||'')}</td><td>${escapeHtml(a.carga||'')}</td><td>${escapeHtml(a.descanso||'')}</td><td>${escapeHtml(a.observacao||'')}</td>
+          <td class="acoes-cell">
+            <button type="button" class="small secondary btn-editar-anotacao" data-id="${a.id}">Editar</button>
+            <button type="button" class="small btn-excluir-anotacao" data-id="${a.id}">Excluir</button>
+          </td>
+        </tr>`).join('') || '<tr><td colspan="7" style="color:var(--text-dim)">Nenhuma anotação ainda.</td></tr>'}</tbody>
+      </table>
+    </div>
   `;
 
   sessoesAtuais = sessoes;
+  anotacoesAtuais = anotacoes;
   contextoSessaoAtual = { usuarioAluno, souTreinador };
 
   renderCardsMetricas(analise);
@@ -691,6 +919,18 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
   });
   document.querySelectorAll('.btn-excluir-sessao').forEach(btn => {
     btn.addEventListener('click', () => abrirExclusaoSessao(btn.dataset.id));
+  });
+
+  document.getElementById('btnSalvarAnotacao').addEventListener('click', async (ev) => {
+    ev.preventDefault();
+    await salvarAnotacao(usuarioAluno, souTreinador);
+  });
+
+  document.querySelectorAll('.btn-editar-anotacao').forEach(btn => {
+    btn.addEventListener('click', () => abrirEdicaoAnotacao(btn.dataset.id));
+  });
+  document.querySelectorAll('.btn-excluir-anotacao').forEach(btn => {
+    btn.addEventListener('click', () => abrirExclusaoAnotacao(btn.dataset.id));
   });
 }
 
