@@ -154,6 +154,11 @@
   .borg-row .borg-label{flex:1;font-weight:600;font-size:14px;color:#fff;}
   .borg-row .borg-emoji{font-size:19px;flex-shrink:0;}
 
+  .acoes-cell{white-space:nowrap;}
+  .acoes-cell button{margin-right:6px;padding:5px 10px;font-size:12px;}
+  .btn-excluir-sessao{background:var(--red);color:#fff;}
+  .btn-excluir-sessao:hover{opacity:.85;}
+
   @media (max-width:760px){
     .app{flex-direction:column;}
     nav.sidebar{width:100%;border-right:none;border-bottom:1px solid var(--line);max-height:220px;}
@@ -217,6 +222,42 @@
     <div class="actions">
       <button class="secondary" id="btnCancelarNovoAluno">Cancelar</button>
       <button id="btnSalvarNovoAluno">Criar aluno</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal editar sessão -->
+<div class="modal-bg hidden" id="modalEditarSessao">
+  <div class="modal">
+    <h3>Editar sessão</h3>
+    <div class="field"><label>Data</label><input type="date" id="eData"></div>
+    <div class="field">
+      <label>PSE (Escala de Borg 0–10)</label>
+      <input type="hidden" id="ePse">
+      <button type="button" class="pse-trigger" id="btnAbrirBorgEdicao">
+        <span id="pseTriggerTextoEdicao">Toque para selecionar</span><span class="seta">▾</span>
+      </button>
+    </div>
+    <div class="field"><label>Horas (opcional)</label><input type="number" id="eTempoHoras" min="0" step="1" placeholder="ex: 1"></div>
+    <div class="field"><label>Minutos*</label><input type="number" id="eTempoMinutos" min="0" max="59" step="1" placeholder="ex: 30"></div>
+    <div class="field"><label>Observações (opcional)</label><input id="eObs" placeholder="ex: treino de força, bloco de potência..."></div>
+    <div id="editarSessaoMsg"></div>
+    <div class="actions">
+      <button class="secondary" id="btnCancelarEdicao">Cancelar</button>
+      <button id="btnSalvarEdicao">Salvar alterações</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal excluir sessão -->
+<div class="modal-bg hidden" id="modalExcluirSessao">
+  <div class="modal">
+    <h3>Excluir sessão?</h3>
+    <p id="excluirSessaoInfo" style="color:var(--text-dim);font-size:14px;margin-top:0;"></p>
+    <div id="excluirSessaoMsg"></div>
+    <div class="actions">
+      <button class="secondary" id="btnCancelarExclusao">Cancelar</button>
+      <button id="btnConfirmarExclusao" style="background:var(--red);color:#fff;">Excluir</button>
     </div>
   </div>
 </div>
@@ -388,14 +429,27 @@ function renderBorgLista() {
   });
 }
 
+// borgAlvo define quais elementos (campo oculto / texto do gatilho / botão gatilho) a escala de Borg
+// atualiza quando um valor é escolhido — permite reutilizar o mesmo modal no formulário de nova sessão
+// e no modal de edição de sessão.
+let borgAlvo = { hidden: 'fPse', texto: 'pseTriggerTexto', trigger: 'btnAbrirBorg' };
+
+function abrirModalBorg(alvo) {
+  borgAlvo = alvo;
+  const valorAtual = document.getElementById(alvo.hidden).value;
+  pseSelecionado = valorAtual !== '' ? Number(valorAtual) : null;
+  renderBorgLista();
+  document.getElementById('modalBorg').classList.remove('hidden');
+}
+
 function selecionarPse(v) {
   pseSelecionado = v;
   const info = BORG_ESCALA.find(b => b.v === v);
-  const campoOculto = document.getElementById('fPse');
+  const campoOculto = document.getElementById(borgAlvo.hidden);
   if (campoOculto) campoOculto.value = v;
-  const textoEl = document.getElementById('pseTriggerTexto');
+  const textoEl = document.getElementById(borgAlvo.texto);
   if (textoEl) textoEl.textContent = v + ' — ' + info.label;
-  const trigger = document.getElementById('btnAbrirBorg');
+  const trigger = document.getElementById(borgAlvo.trigger);
   if (trigger) {
     trigger.classList.add('selecionado');
     trigger.style.borderLeftColor = info.cor;
@@ -405,6 +459,107 @@ function selecionarPse(v) {
 
 document.getElementById('btnFecharBorg').addEventListener('click', () => {
   document.getElementById('modalBorg').classList.add('hidden');
+});
+
+document.getElementById('btnAbrirBorgEdicao').addEventListener('click', () => {
+  abrirModalBorg({ hidden: 'ePse', texto: 'pseTriggerTextoEdicao', trigger: 'btnAbrirBorgEdicao' });
+});
+
+/* ============================= EDITAR / EXCLUIR SESSÃO ============================= */
+let sessoesAtuais = [];
+let contextoSessaoAtual = null; // { usuarioAluno, souTreinador } — para saber quem recarregar depois de editar/excluir
+let sessaoEditandoId = null;
+let sessaoExcluindoId = null;
+
+async function recarregarPainelAtual() {
+  if (!contextoSessaoAtual) return;
+  const { usuarioAluno, souTreinador } = contextoSessaoAtual;
+  const nomeAtual = souTreinador ? (alunos.find(a => a.usuario === usuarioAluno) || {}).nome : sessao.nome;
+  await renderPainelAluno(usuarioAluno, nomeAtual || usuarioAluno, souTreinador);
+}
+
+function abrirEdicaoSessao(id) {
+  const s = sessoesAtuais.find(x => String(x.id) === String(id));
+  if (!s) return;
+  sessaoEditandoId = id;
+
+  document.getElementById('eData').value = s.data;
+  document.getElementById('eObs').value = s.observacoes || '';
+  const tempoTotal = Number(s.tempo_min) || 0;
+  const horas = Math.floor(tempoTotal / 60);
+  const minutos = tempoTotal % 60;
+  document.getElementById('eTempoHoras').value = horas > 0 ? horas : '';
+  document.getElementById('eTempoMinutos').value = minutos;
+  document.getElementById('editarSessaoMsg').innerHTML = '';
+
+  document.getElementById('ePse').value = s.pse;
+  const infoPse = BORG_ESCALA.find(b => b.v === Number(s.pse));
+  const trigger = document.getElementById('btnAbrirBorgEdicao');
+  document.getElementById('pseTriggerTextoEdicao').textContent = s.pse + (infoPse ? ' — ' + infoPse.label : '');
+  if (infoPse) { trigger.classList.add('selecionado'); trigger.style.borderLeftColor = infoPse.cor; }
+
+  document.getElementById('modalEditarSessao').classList.remove('hidden');
+}
+
+document.getElementById('btnCancelarEdicao').addEventListener('click', () => {
+  document.getElementById('modalEditarSessao').classList.add('hidden');
+});
+
+document.getElementById('btnSalvarEdicao').addEventListener('click', async () => {
+  const msgEl = document.getElementById('editarSessaoMsg');
+  const data = document.getElementById('eData').value;
+  const pse = document.getElementById('ePse').value;
+  const horasStr = document.getElementById('eTempoHoras').value;
+  const minutosStr = document.getElementById('eTempoMinutos').value;
+  const obs = document.getElementById('eObs').value;
+  const btn = document.getElementById('btnSalvarEdicao');
+
+  msgEl.innerHTML = '';
+  if (!data) { msgEl.innerHTML = '<div class="msg-erro">Informe a data.</div>'; return; }
+  if (pse === '' || pse === null) { msgEl.innerHTML = '<div class="msg-erro">Selecione o PSE na escala de Borg.</div>'; return; }
+  if (minutosStr === '' || minutosStr === null) { msgEl.innerHTML = '<div class="msg-erro">Informe os minutos (as horas são opcionais).</div>'; return; }
+  const horas = Number(horasStr) || 0;
+  const minutos = Number(minutosStr) || 0;
+  const tempoTotalMin = horas * 60 + minutos;
+  if (tempoTotalMin <= 0) { msgEl.innerHTML = '<div class="msg-erro">O tempo total da sessão deve ser maior que 0.</div>'; return; }
+
+  btn.disabled = true;
+  try {
+    const resp = await chamarApi({ action: 'editarSessao', id: sessaoEditandoId, data, pse, tempo_min: tempoTotalMin, observacoes: obs });
+    if (!resp.ok) { msgEl.innerHTML = '<div class="msg-erro">' + escapeHtml(resp.erro) + '</div>'; return; }
+    document.getElementById('modalEditarSessao').classList.add('hidden');
+    await recarregarPainelAtual();
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function abrirExclusaoSessao(id) {
+  const s = sessoesAtuais.find(x => String(x.id) === String(id));
+  if (!s) return;
+  sessaoExcluindoId = id;
+  document.getElementById('excluirSessaoInfo').textContent =
+    'Sessão de ' + formatarDataBR(s.data) + ' — PSE ' + s.pse + ', ' + s.tempo_min + ' min, ' + s.carga_ua + ' u.a.';
+  document.getElementById('excluirSessaoMsg').innerHTML = '';
+  document.getElementById('modalExcluirSessao').classList.remove('hidden');
+}
+
+document.getElementById('btnCancelarExclusao').addEventListener('click', () => {
+  document.getElementById('modalExcluirSessao').classList.add('hidden');
+});
+
+document.getElementById('btnConfirmarExclusao').addEventListener('click', async () => {
+  const msgEl = document.getElementById('excluirSessaoMsg');
+  const btn = document.getElementById('btnConfirmarExclusao');
+  btn.disabled = true;
+  try {
+    const resp = await chamarApi({ action: 'excluirSessao', id: sessaoExcluindoId });
+    if (!resp.ok) { msgEl.innerHTML = '<div class="msg-erro">' + escapeHtml(resp.erro) + '</div>'; return; }
+    document.getElementById('modalExcluirSessao').classList.add('hidden');
+    await recarregarPainelAtual();
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 /* ============================= ALUNOS (visão treinador) ============================= */
@@ -503,26 +658,39 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
     <div class="chart-wrap">
       <h3>Últimas sessões</h3>
       <table>
-        <thead><tr><th>Data</th><th>PSE</th><th>Tempo (min)</th><th>Carga (u.a.)</th><th>Obs.</th></tr></thead>
+        <thead><tr><th>Data</th><th>PSE</th><th>Tempo (min)</th><th>Carga (u.a.)</th><th>Obs.</th><th>Ações</th></tr></thead>
         <tbody>${sessoes.slice().reverse().slice(0,15).map(s => `<tr>
           <td>${formatarDataBR(s.data)}</td><td>${s.pse}</td><td>${s.tempo_min}</td><td>${s.carga_ua}</td><td>${escapeHtml(s.observacoes||'')}</td>
-        </tr>`).join('') || '<tr><td colspan="5" style="color:var(--text-dim)">Nenhuma sessão registrada ainda.</td></tr>'}</tbody>
+          <td class="acoes-cell">
+            <button type="button" class="small secondary btn-editar-sessao" data-id="${s.id}">Editar</button>
+            <button type="button" class="small btn-excluir-sessao" data-id="${s.id}">Excluir</button>
+          </td>
+        </tr>`).join('') || '<tr><td colspan="6" style="color:var(--text-dim)">Nenhuma sessão registrada ainda.</td></tr>'}</tbody>
       </table>
     </div>
   `;
+
+  sessoesAtuais = sessoes;
+  contextoSessaoAtual = { usuarioAluno, souTreinador };
 
   renderCardsMetricas(analise);
   renderGraficos(analise);
 
   pseSelecionado = null;
   document.getElementById('btnAbrirBorg').addEventListener('click', () => {
-    renderBorgLista();
-    document.getElementById('modalBorg').classList.remove('hidden');
+    abrirModalBorg({ hidden: 'fPse', texto: 'pseTriggerTexto', trigger: 'btnAbrirBorg' });
   });
 
   document.getElementById('btnSalvarSessao').addEventListener('click', async (ev) => {
     ev.preventDefault();
     await salvarSessao(usuarioAluno, souTreinador);
+  });
+
+  document.querySelectorAll('.btn-editar-sessao').forEach(btn => {
+    btn.addEventListener('click', () => abrirEdicaoSessao(btn.dataset.id));
+  });
+  document.querySelectorAll('.btn-excluir-sessao').forEach(btn => {
+    btn.addEventListener('click', () => abrirExclusaoSessao(btn.dataset.id));
   });
 }
 
