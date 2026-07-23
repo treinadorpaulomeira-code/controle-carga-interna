@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle de Carga — Paulo Meira</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#1F1F23;
+    --bg-panel:#26262C;
+    --bg-row:#2C2C33;
+    --text:#EAEAEA;
+    --text-dim:#B5B5B5;
+    --gold:#D4A93A;
+    --gold-light:#E8C46B;
+    --line:#3A3A40;
+    --green:#7BC47F;
+    --red:#E07B7B;
+    --blue:#6FB4E8;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    min-height:100vh;
+  }
+  header.topbar{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:14px 20px;
+    border-bottom:1px solid var(--line);
+    background:var(--bg-panel);
+  }
+  header.topbar img{height:40px;border-radius:6px;}
+  header.topbar h1{font-size:17px;margin:0;color:var(--gold-light);font-weight:600;}
+  header.topbar .spacer{flex:1;}
+  header.topbar .userbox{font-size:13px;color:var(--text-dim);display:flex;align-items:center;gap:10px;}
+  button, .btn{
+    background:var(--gold);
+    color:#1F1F23;
+    border:none;
+    padding:9px 16px;
+    border-radius:8px;
+    font-weight:600;
+    cursor:pointer;
+    font-size:13px;
+  }
+  button.secondary{background:transparent;color:var(--gold-light);border:1px solid var(--gold);}
+  button.small{padding:6px 10px;font-size:12px;}
+  button:disabled{opacity:.5;cursor:not-allowed;}
+  input, select, textarea{
+    background:#17171A;
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:9px 10px;
+    border-radius:6px;
+    font-size:14px;
+    width:100%;
+  }
+  label{font-size:12px;color:var(--text-dim);display:block;margin-bottom:4px;}
+  .field{margin-bottom:12px;}
+  .hidden{display:none !important;}
+
+  /* LOGIN */
+  #loginScreen{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;padding:20px;
+  }
+  #loginScreen img{height:70px;margin-bottom:6px;border-radius:10px;}
+  #loginScreen .card{
+    background:var(--bg-panel);border:1px solid var(--line);border-radius:14px;padding:28px;width:100%;max-width:340px;
+  }
+  #loginScreen h2{margin:0 0 18px;color:var(--gold-light);font-size:18px;text-align:center;}
+  #loginError{color:var(--red);font-size:13px;margin-top:10px;min-height:16px;}
+
+  /* LAYOUT */
+  .app{display:flex;min-height:calc(100vh - 68px);}
+  nav.sidebar{
+    width:230px;flex-shrink:0;background:var(--bg-panel);border-right:1px solid var(--line);
+    padding:16px 12px;overflow-y:auto;
+  }
+  nav.sidebar h3{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);margin:6px 8px 10px;}
+  .aluno-item{
+    padding:10px 12px;border-radius:8px;cursor:pointer;font-size:14px;margin-bottom:4px;color:var(--text);
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .aluno-item:hover{background:var(--bg-row);}
+  .aluno-item.active{background:var(--gold);color:#1F1F23;font-weight:600;}
+  .aluno-item .tag-inativo{font-size:10px;color:var(--red);border:1px solid var(--red);padding:1px 5px;border-radius:4px;}
+  main.content{flex:1;padding:22px;overflow-y:auto;}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-bottom:22px;}
+  .card{background:var(--bg-panel);border:1px solid var(--line);border-radius:12px;padding:16px;}
+  .card h3{margin:0 0 4px;font-size:13px;color:var(--text-dim);font-weight:500;}
+  .card .value{font-size:26px;font-weight:700;color:var(--gold-light);}
+  .card .sub{font-size:12px;color:var(--text-dim);margin-top:4px;}
+  .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;margin-top:6px;}
+  .badge.verde{background:rgba(123,196,127,.18);color:var(--green);}
+  .badge.dourado{background:rgba(212,169,58,.18);color:var(--gold-light);}
+  .badge.vermelho{background:rgba(224,123,123,.18);color:var(--red);}
+  .badge.neutro{background:rgba(181,181,181,.15);color:var(--text-dim);}
+
+  .chart-wrap{background:var(--bg-panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:22px;}
+  .chart-wrap h3{margin:0 0 12px;font-size:14px;color:var(--gold-light);}
+  canvas{max-height:260px;}
+
+  form.session-form{
+    background:var(--bg-panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:22px;
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;align-items:end;
+  }
+  form.session-form .full{grid-column:1/-1;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  table th, table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);}
+  table th{color:var(--text-dim);font-weight:500;font-size:12px;}
+  table tr:nth-child(even){background:var(--bg-row);}
+
+  .modal-bg{
+    position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:50;
+  }
+  .modal{background:var(--bg-panel);border:1px solid var(--line);border-radius:14px;padding:24px;width:100%;max-width:360px;}
+  .modal h3{margin:0 0 16px;color:var(--gold-light);}
+  .modal .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:8px;}
+  .msg-ok{color:var(--green);font-size:13px;margin-top:8px;}
+  .msg-erro{color:var(--red);font-size:13px;margin-top:8px;}
+  .empty-state{color:var(--text-dim);font-size:14px;text-align:center;padding:60px 20px;}
+  .info-note{font-size:12px;color:var(--text-dim);border-left:3px solid var(--gold);padding:8px 12px;background:var(--bg-row);border-radius:0 8px 8px 0;margin-bottom:18px;}
+  @media (max-width:760px){
+    .app{flex-direction:column;}
+    nav.sidebar{width:100%;border-right:none;border-bottom:1px solid var(--line);max-height:220px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="loginScreen">
+  <img src="logo.jpg" alt="Paulo Meira">
+  <div class="card">
+    <h2>Controle de Carga Interna</h2>
+    <div class="field">
+      <label>Usuário</label>
+      <input id="loginUsuario" autocomplete="username" placeholder="seu usuário">
+    </div>
+    <div class="field">
+      <label>Senha</label>
+      <input id="loginSenha" type="password" autocomplete="current-password" placeholder="sua senha">
+    </div>
+    <button id="btnLogin" style="width:100%">Entrar</button>
+    <div id="loginError"></div>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="appScreen" class="hidden">
+  <header class="topbar">
+    <img src="logo.jpg" alt="Paulo Meira">
+    <h1>Controle de Carga Interna</h1>
+    <div class="spacer"></div>
+    <div class="userbox">
+      <span id="userLabel"></span>
+      <button class="secondary small" id="btnLogout">Sair</button>
+    </div>
+  </header>
+
+  <div class="app">
+    <nav class="sidebar hidden" id="sidebarTreinador">
+      <h3>Alunos</h3>
+      <div id="listaAlunos"></div>
+      <button class="secondary small" id="btnNovoAluno" style="width:100%;margin-top:10px;">+ Novo aluno</button>
+    </nav>
+
+    <main class="content">
+      <div id="visaoGeral"></div>
+      <div id="painelAluno"></div>
+    </main>
+  </div>
+</div>
+
+<!-- Modal novo aluno -->
+<div class="modal-bg hidden" id="modalNovoAluno">
+  <div class="modal">
+    <h3>Novo aluno</h3>
+    <div class="field"><label>Nome completo</label><input id="novoAlunoNome"></div>
+    <div class="field"><label>Usuário (login)</label><input id="novoAlunoUsuario" placeholder="ex: joao.silva"></div>
+    <div class="field"><label>Senha inicial</label><input id="novoAlunoSenha" placeholder="mínimo 4 caracteres"></div>
+    <div id="novoAlunoMsg"></div>
+    <div class="actions">
+      <button class="secondary" id="btnCancelarNovoAluno">Cancelar</button>
+      <button id="btnSalvarNovoAluno">Criar aluno</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   CONFIGURAÇÃO — troque pela URL do seu Web App do Google Apps Script
+   (Deploy > New deployment > Web app > copie a URL que termina em /exec)
+   ========================================================================= */
+const API_URL = "COLE_AQUI_A_URL_DO_SEU_WEB_APP";
+
+/* ============================= ESTADO ============================= */
+let sessao = {
+  token: localStorage.getItem('cargaTreino_token') || null,
+  role: localStorage.getItem('cargaTreino_role') || null,
+  usuario: localStorage.getItem('cargaTreino_usuario') || null,
+  nome: localStorage.getItem('cargaTreino_nome') || null,
+};
+let alunos = [];
+let alunoAtual = null; // usuario do aluno selecionado (visão treinador) ou o próprio (visão aluno)
+let charts = {};
+
+/* ============================= API ============================= */
+async function chamarApi(payload) {
+  if (!API_URL || API_URL.indexOf('COLE_AQUI') !== -1) {
+    alert('Configure a constante API_URL no topo do index.html com a URL do seu Web App do Google Apps Script.');
+    throw new Error('API_URL não configurada');
+  }
+  const body = Object.assign({}, payload, { token: sessao.token });
+  const resp = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  const data = await resp.json();
+  if (data.erro === 'Sessão inválida ou expirada. Faça login novamente.') {
+    encerrarSessaoLocal();
+    mostrarLogin();
+  }
+  return data;
+}
+
+/* ============================= LOGIN / LOGOUT ============================= */
+document.getElementById('btnLogin').addEventListener('click', fazerLogin);
+document.getElementById('loginSenha').addEventListener('keydown', e => { if (e.key === 'Enter') fazerLogin(); });
+
+async function fazerLogin() {
+  const usuario = document.getElementById('loginUsuario').value.trim();
+  const senha = document.getElementById('loginSenha').value;
+  const erroEl = document.getElementById('loginError');
+  erroEl.textContent = '';
+  if (!usuario || !senha) { erroEl.textContent = 'Preencha usuário e senha.'; return; }
+
+  const btn = document.getElementById('btnLogin');
+  btn.disabled = true; btn.textContent = 'Entrando...';
+  try {
+    const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'login', usuario, senha }) });
+    const data = await resp.json();
+    if (!data.ok) { erroEl.textContent = data.erro || 'Falha no login.'; return; }
+    sessao = { token: data.token, role: data.role, usuario: data.usuario, nome: data.nome };
+    localStorage.setItem('cargaTreino_token', sessao.token);
+    localStorage.setItem('cargaTreino_role', sessao.role);
+    localStorage.setItem('cargaTreino_usuario', sessao.usuario);
+    localStorage.setItem('cargaTreino_nome', sessao.nome);
+    await iniciarApp();
+  } catch (err) {
+    erroEl.textContent = 'Não foi possível conectar ao servidor. Verifique o API_URL.';
+    console.error(err);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Entrar';
+  }
+}
+
+document.getElementById('btnLogout').addEventListener('click', async () => {
+  try { await chamarApi({ action: 'logout' }); } catch (e) {}
+  encerrarSessaoLocal();
+  mostrarLogin();
+});
+
+function encerrarSessaoLocal() {
+  localStorage.removeItem('cargaTreino_token');
+  localStorage.removeItem('cargaTreino_role');
+  localStorage.removeItem('cargaTreino_usuario');
+  localStorage.removeItem('cargaTreino_nome');
+  sessao = { token: null, role: null, usuario: null, nome: null };
+}
+
+function mostrarLogin() {
+  document.getElementById('appScreen').classList.add('hidden');
+  document.getElementById('loginScreen').classList.remove('hidden');
+  document.getElementById('loginSenha').value = '';
+}
+
+/* ============================= INICIALIZAÇÃO ============================= */
+async function iniciarApp() {
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('appScreen').classList.remove('hidden');
+  document.getElementById('userLabel').textContent = sessao.nome + (sessao.role === 'treinador' ? ' (treinador)' : '');
+
+  if (sessao.role === 'treinador') {
+    document.getElementById('sidebarTreinador').classList.remove('hidden');
+    await carregarAlunos();
+    renderVisaoGeralTreinador();
+  } else {
+    document.getElementById('sidebarTreinador').classList.add('hidden');
+    alunoAtual = sessao.usuario;
+    await renderPainelAluno(sessao.usuario, sessao.nome, false);
+  }
+}
+
+if (sessao.token) { iniciarApp().catch(() => mostrarLogin()); }
+
+/* ============================= ALUNOS (visão treinador) ============================= */
+async function carregarAlunos() {
+  const data = await chamarApi({ action: 'listAlunos' });
+  alunos = data.ok ? data.alunos : [];
+  renderListaAlunos();
+}
+
+function renderListaAlunos() {
+  const el = document.getElementById('listaAlunos');
+  el.innerHTML = '';
+  alunos.forEach(a => {
+    const div = document.createElement('div');
+    div.className = 'aluno-item' + (alunoAtual === a.usuario ? ' active' : '');
+    div.innerHTML = '<span>' + escapeHtml(a.nome) + '</span>' + (a.ativo ? '' : '<span class="tag-inativo">inativo</span>');
+    div.addEventListener('click', () => selecionarAluno(a));
+    el.appendChild(div);
+  });
+}
+
+async function selecionarAluno(aluno) {
+  alunoAtual = aluno.usuario;
+  document.getElementById('visaoGeral').innerHTML = '';
+  renderListaAlunos();
+  await renderPainelAluno(aluno.usuario, aluno.nome, true);
+}
+
+document.getElementById('btnNovoAluno').addEventListener('click', () => {
+  document.getElementById('novoAlunoNome').value = '';
+  document.getElementById('novoAlunoUsuario').value = '';
+  document.getElementById('novoAlunoSenha').value = '';
+  document.getElementById('novoAlunoMsg').innerHTML = '';
+  document.getElementById('modalNovoAluno').classList.remove('hidden');
+});
+document.getElementById('btnCancelarNovoAluno').addEventListener('click', () => {
+  document.getElementById('modalNovoAluno').classList.add('hidden');
+});
+document.getElementById('btnSalvarNovoAluno').addEventListener('click', async () => {
+  const nome = document.getElementById('novoAlunoNome').value.trim();
+  const usuario = document.getElementById('novoAlunoUsuario').value.trim().toLowerCase();
+  const senha = document.getElementById('novoAlunoSenha').value;
+  const msgEl = document.getElementById('novoAlunoMsg');
+  if (!nome || !usuario || !senha) { msgEl.innerHTML = '<div class="msg-erro">Preencha todos os campos.</div>'; return; }
+  const data = await chamarApi({ action: 'addAluno', nome, usuario, senha });
+  if (!data.ok) { msgEl.innerHTML = '<div class="msg-erro">' + escapeHtml(data.erro) + '</div>'; return; }
+  document.getElementById('modalNovoAluno').classList.add('hidden');
+  await carregarAlunos();
+});
+
+/* ============================= VISÃO GERAL (treinador, sem aluno selecionado) ============================= */
+function renderVisaoGeralTreinador() {
+  document.getElementById('painelAluno').innerHTML = '';
+  const el = document.getElementById('visaoGeral');
+  if (alunos.length === 0) {
+    el.innerHTML = '<div class="empty-state">Nenhum aluno cadastrado ainda. Clique em "+ Novo aluno" para começar.</div>';
+    return;
+  }
+  el.innerHTML = '<div class="info-note">Selecione um aluno na lista à esquerda para lançar sessões e ver os gráficos de carga interna (Razão Agudo:Crônica, Monotonia e Strain).</div>';
+}
+
+/* ============================= PAINEL DO ALUNO (sessões + gráficos) ============================= */
+async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
+  const painel = document.getElementById('painelAluno');
+  painel.innerHTML = '<p style="color:var(--text-dim)">Carregando dados de ' + escapeHtml(nomeAluno) + '...</p>';
+
+  const resp = await chamarApi({ action: 'getSessoes', aluno_usuario: usuarioAluno });
+  const sessoes = resp.ok ? resp.sessoes : [];
+  const analise = analisarCargaInterna(sessoes);
+
+  painel.innerHTML = `
+    <h2 style="color:var(--gold-light);margin-top:0;">${escapeHtml(nomeAluno)}</h2>
+
+    <form class="session-form" id="formSessao">
+      <div class="field"><label>Data</label><input type="date" id="fData" value="${hojeISO()}"></div>
+      <div class="field"><label>PSE (Borg 0–10)</label><input type="number" id="fPse" min="0" max="10" step="0.5" placeholder="ex: 6"></div>
+      <div class="field"><label>Tempo da sessão (min)</label><input type="number" id="fTempo" min="1" step="1" placeholder="ex: 60"></div>
+      <div class="field full"><label>Observações (opcional)</label><input id="fObs" placeholder="ex: treino de força, bloco de potência..."></div>
+      <div class="field"><button id="btnSalvarSessao" style="width:100%">Salvar sessão</button></div>
+      <div class="full" id="msgSessao"></div>
+    </form>
+
+    <div class="grid" id="cardsMetricas"></div>
+
+    <div class="chart-wrap"><h3>Carga interna semanal (u.a.) — PSE × tempo</h3><canvas id="chartCarga"></canvas></div>
+    <div class="chart-wrap"><h3>Razão Agudo:Crônica (ACWR)</h3><canvas id="chartAcwr"></canvas></div>
+    <div class="chart-wrap"><h3>Monotonia e Strain semanais</h3><canvas id="chartMonotoniaStrain"></canvas></div>
+
+    <div class="chart-wrap">
+      <h3>Últimas sessões</h3>
+      <table>
+        <thead><tr><th>Data</th><th>PSE</th><th>Tempo (min)</th><th>Carga (u.a.)</th><th>Obs.</th></tr></thead>
+        <tbody>${sessoes.slice().reverse().slice(0,15).map(s => `<tr>
+          <td>${formatarDataBR(s.data)}</td><td>${s.pse}</td><td>${s.tempo_min}</td><td>${s.carga_ua}</td><td>${escapeHtml(s.observacoes||'')}</td>
+        </tr>`).join('') || '<tr><td colspan="5" style="color:var(--text-dim)">Nenhuma sessão registrada ainda.</td></tr>'}</tbody>
+      </table>
+    </div>
+  `;
+
+  renderCardsMetricas(analise);
+  renderGraficos(analise);
+
+  document.getElementById('btnSalvarSessao').addEventListener('click', async (ev) => {
+    ev.preventDefault();
+    await salvarSessao(usuarioAluno, souTreinador);
+  });
+}
+
+async function salvarSessao(usuarioAluno, souTreinador) {
+  const data = document.getElementById('fData').value;
+  const pse = document.getElementById('fPse').value;
+  const tempo = document.getElementById('fTempo').value;
+  const obs = document.getElementById('fObs').value;
+  const msgEl = document.getElementById('msgSessao');
+  const btn = document.getElementById('btnSalvarSessao');
+
+  msgEl.innerHTML = '';
+  btn.disabled = true;
+  try {
+    const payload = { action: 'addSessao', data, pse, tempo_min: tempo, observacoes: obs };
+    if (souTreinador) payload.aluno_usuario = usuarioAluno;
+    const resp = await chamarApi(payload);
+    if (!resp.ok) { msgEl.innerHTML = '<div class="msg-erro">' + escapeHtml(resp.erro) + '</div>'; return; }
+    msgEl.innerHTML = '<div class="msg-ok">Sessão salva! Carga: ' + resp.carga_ua + ' u.a.</div>';
+    const nomeAtual = souTreinador ? (alunos.find(a => a.usuario === usuarioAluno) || {}).nome : sessao.nome;
+    await renderPainelAluno(usuarioAluno, nomeAtual || usuarioAluno, souTreinador);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ============================= CÁLCULOS: FOSTER / MONOTONIA / STRAIN / ACWR =============================
+   Fórmulas conforme references/formulas.md da skill "controle-carga-treino" (Paulo Meira):
+   - Carga diária (u.a.) = PSE (Borg 0-10) × tempo da sessão (min)
+   - Semana ISO completa (segunda a domingo), dias sem treino contam como carga 0
+   - Monotonia = média diária da semana ÷ desvio padrão POPULACIONAL diário da semana
+   - Strain = Carga semanal total × Monotonia
+   - ACWR = carga da semana atual (aguda) ÷ média das 4 semanas crônicas anteriores
+     (só é exibido quando existem 4+ semanas anteriores no histórico)
+============================================================================= */
+function analisarCargaInterna(sessoes) {
+  if (!sessoes || sessoes.length === 0) return { semanas: [], vazio: true };
+
+  const cargaPorDia = {}; // 'YYYY-MM-DD' -> soma de carga do dia
+  sessoes.forEach(s => {
+    cargaPorDia[s.data] = (cargaPorDia[s.data] || 0) + Number(s.carga_ua);
+  });
+
+  const datas = Object.keys(cargaPorDia).sort();
+  const primeiraSegunda = segundaDaSemana(new Date(datas[0] + 'T00:00:00'));
+  const ultimaData = new Date(datas[datas.length - 1] + 'T00:00:00');
+
+  const semanas = [];
+  let cursor = new Date(primeiraSegunda);
+  while (cursor <= ultimaData) {
+    const dias = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(cursor);
+      d.setDate(d.getDate() + i);
+      const iso = isoDate(d);
+      dias.push(cargaPorDia[iso] || 0);
+    }
+    const cargaSemanal = dias.reduce((a, b) => a + b, 0);
+    const media = cargaSemanal / 7;
+    const desvio = desvioPadraoPopulacional(dias);
+    const monotonia = desvio > 0 ? media / desvio : null;
+    const strain = monotonia !== null ? cargaSemanal * monotonia : null;
+    semanas.push({
+      inicio: isoDate(cursor),
+      cargaSemanal: round2(cargaSemanal),
+      monotonia: monotonia !== null ? round2(monotonia) : null,
+      strain: strain !== null ? round2(strain) : null,
+    });
+    cursor.setDate(cursor.getDate() + 7);
+  }
+
+  for (let i = 0; i < semanas.length; i++) {
+    if (i >= 4) {
+      const anteriores = semanas.slice(i - 4, i).map(s => s.cargaSemanal);
+      const mediaCronica = anteriores.reduce((a, b) => a + b, 0) / 4;
+      semanas[i].acwr = mediaCronica > 0 ? round2(semanas[i].cargaSemanal / mediaCronica) : null;
+    } else {
+      semanas[i].acwr = null;
+    }
+  }
+
+  return { semanas, vazio: false };
+}
+
+function segundaDaSemana(d) {
+  const dia = d.getDay(); // 0=domingo
+  const diff = (dia === 0 ? -6 : 1 - dia);
+  const seg = new Date(d);
+  seg.setDate(seg.getDate() + diff);
+  seg.setHours(0,0,0,0);
+  return seg;
+}
+function isoDate(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function desvioPadraoPopulacional(arr) {
+  const media = arr.reduce((a,b)=>a+b,0) / arr.length;
+  const variancia = arr.reduce((a,b)=>a + Math.pow(b-media,2), 0) / arr.length;
+  return Math.sqrt(variancia);
+}
+function round2(n) { return Math.round(n * 100) / 100; }
+
+function classificarMonotonia(m) {
+  if (m === null) return { texto: 'N/A', cor: 'neutro' };
+  if (m > 2.0) return { texto: 'Alta (risco)', cor: 'vermelho' };
+  if (m >= 1.0) return { texto: 'Ideal', cor: 'dourado' };
+  return { texto: 'Baixa', cor: 'verde' };
+}
+function classificarStrain(s) {
+  if (s === null) return { texto: 'N/A', cor: 'neutro' };
+  if (s > 4500) return { texto: 'Alto', cor: 'vermelho' };
+  if (s >= 2500) return { texto: 'Moderado (ideal)', cor: 'dourado' };
+  return { texto: 'Baixo', cor: 'verde' };
+}
+function classificarAcwr(a) {
+  if (a === null) return { texto: 'Aguardando histórico', cor: 'neutro' };
+  if (a > 1.5) return { texto: 'Risco alto', cor: 'vermelho' };
+  if (a >= 0.8 && a <= 1.3) return { texto: 'Zona ótima', cor: 'verde' };
+  return { texto: 'Atenção', cor: 'dourado' };
+}
+
+/* ============================= RENDER: CARDS ============================= */
+function renderCardsMetricas(analise) {
+  const el = document.getElementById('cardsMetricas');
+  if (analise.vazio) { el.innerHTML = ''; return; }
+  const ultima = analise.semanas[analise.semanas.length - 1];
+  const cMono = classificarMonotonia(ultima.monotonia);
+  const cStrain = classificarStrain(ultima.strain);
+  const cAcwr = classificarAcwr(ultima.acwr);
+
+  el.innerHTML = `
+    <div class="card">
+      <h3>Carga da semana atual</h3>
+      <div class="value">${ultima.cargaSemanal}</div>
+      <div class="sub">u.a. (semana de ${formatarDataBR(ultima.inicio)})</div>
+    </div>
+    <div class="card">
+      <h3>Monotonia</h3>
+      <div class="value">${ultima.monotonia ?? '—'}</div>
+      <span class="badge ${cMono.cor}">${cMono.texto}</span>
+    </div>
+    <div class="card">
+      <h3>Strain</h3>
+      <div class="value">${ultima.strain ?? '—'}</div>
+      <span class="badge ${cStrain.cor}">${cStrain.texto}</span>
+    </div>
+    <div class="card">
+      <h3>ACWR (Agudo:Crônico)</h3>
+      <div class="value">${ultima.acwr ?? '—'}</div>
+      <span class="badge ${cAcwr.cor}">${cAcwr.texto}</span>
+    </div>
+  `;
+}
+
+/* ============================= RENDER: GRÁFICOS ============================= */
+function renderGraficos(analise) {
+  ['chartCarga','chartAcwr','chartMonotoniaStrain'].forEach(id => {
+    if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+  });
+  if (analise.vazio) return;
+
+  const labels = analise.semanas.map(s => formatarDataBR(s.inicio));
+  const cores = {
+    grid: 'rgba(255,255,255,.06)',
+    texto: '#B5B5B5',
+    dourado: '#D4A93A',
+    douradoClaro: '#E8C46B',
+    azul: '#6FB4E8',
+    verde: '#7BC47F',
+    vermelho: '#E07B7B',
+  };
+  Chart.defaults.color = cores.texto;
+  Chart.defaults.borderColor = cores.grid;
+
+  charts.chartCarga = new Chart(document.getElementById('chartCarga'), {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Carga semanal (u.a.)', data: analise.semanas.map(s => s.cargaSemanal), backgroundColor: cores.dourado }] },
+    options: { responsive:true, plugins:{legend:{display:false}} }
+  });
+
+  charts.chartAcwr = new Chart(document.getElementById('chartAcwr'), {
+    type: 'line',
+    data: { labels, datasets: [
+      { label: 'ACWR', data: analise.semanas.map(s => s.acwr), borderColor: cores.douradoClaro, backgroundColor: 'transparent', spanGaps:true, tension:.25 },
+      { label: 'Limite zona ótima (0.8)', data: labels.map(()=>0.8), borderColor: cores.verde, borderDash:[5,5], pointRadius:0 },
+      { label: 'Limite zona ótima (1.3)', data: labels.map(()=>1.3), borderColor: cores.verde, borderDash:[5,5], pointRadius:0 },
+      { label: 'Risco alto (1.5)', data: labels.map(()=>1.5), borderColor: cores.vermelho, borderDash:[5,5], pointRadius:0 },
+    ]},
+    options: { responsive:true, plugins:{legend:{labels:{boxWidth:12,font:{size:10}}}} }
+  });
+
+  charts.chartMonotoniaStrain = new Chart(document.getElementById('chartMonotoniaStrain'), {
+    type: 'line',
+    data: { labels, datasets: [
+      { label:'Monotonia', data: analise.semanas.map(s=>s.monotonia), borderColor: cores.azul, yAxisID:'y', tension:.25, spanGaps:true },
+      { label:'Strain', data: analise.semanas.map(s=>s.strain), borderColor: cores.dourado, yAxisID:'y1', tension:.25, spanGaps:true },
+    ]},
+    options: {
+      responsive:true,
+      interaction:{mode:'index', intersect:false},
+      scales:{
+        y:{ type:'linear', position:'left', title:{display:true,text:'Monotonia'} },
+        y1:{ type:'linear', position:'right', title:{display:true,text:'Strain (u.a.)'}, grid:{drawOnChartArea:false} },
+      }
+    }
+  });
+}
+
+/* ============================= HELPERS ============================= */
+function hojeISO() { return isoDate(new Date()); }
+function formatarDataBR(iso) {
+  const [y,m,d] = iso.split('-');
+  return d + '/' + m + '/' + y.slice(2);
+}
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+</script>
+</body>
+</html>
