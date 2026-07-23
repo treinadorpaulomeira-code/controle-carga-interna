@@ -128,6 +128,32 @@
   .msg-erro{color:var(--red);font-size:13px;margin-top:8px;}
   .empty-state{color:var(--text-dim);font-size:14px;text-align:center;padding:60px 20px;}
   .info-note{font-size:12px;color:var(--text-dim);border-left:3px solid var(--gold);padding:8px 12px;background:var(--bg-row);border-radius:0 8px 8px 0;margin-bottom:18px;}
+
+  /* ESCALA DE BORG (seleção de PSE por clique) */
+  .pse-trigger{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    width:100%;text-align:left;background:#17171A;border:1px solid var(--line);color:var(--text-dim);
+    font-weight:500;border-left:4px solid var(--line);
+  }
+  .pse-trigger .seta{color:var(--text-dim);font-size:12px;}
+  .pse-trigger.selecionado{color:var(--text);}
+  .modal-borg{max-width:440px;max-height:88vh;display:flex;flex-direction:column;}
+  .modal-borg h3{margin-bottom:4px;}
+  .modal-borg .sub{font-size:12px;color:var(--text-dim);margin-bottom:14px;}
+  .borg-lista{overflow-y:auto;display:flex;flex-direction:column;gap:7px;margin-bottom:14px;padding-right:2px;}
+  .borg-row{
+    display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;cursor:pointer;
+    border:2px solid transparent;transition:transform .12s ease, border-color .15s ease;
+  }
+  .borg-row:hover{transform:translateX(2px);}
+  .borg-row.selecionada{border-color:#fff;box-shadow:0 0 0 1px #fff inset;}
+  .borg-row .borg-num{
+    width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.28);flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#fff;
+  }
+  .borg-row .borg-label{flex:1;font-weight:600;font-size:14px;color:#fff;}
+  .borg-row .borg-emoji{font-size:19px;flex-shrink:0;}
+
   @media (max-width:760px){
     .app{flex-direction:column;}
     nav.sidebar{width:100%;border-right:none;border-bottom:1px solid var(--line);max-height:220px;}
@@ -195,6 +221,18 @@
   </div>
 </div>
 
+<!-- Modal escala de Borg (seleção de PSE por clique) -->
+<div class="modal-bg hidden" id="modalBorg">
+  <div class="modal modal-borg">
+    <h3>Escala de Borg</h3>
+    <div class="sub">Percepção Subjetiva de Esforço (PSE) — toque no nível que melhor descreve o esforço da sessão.</div>
+    <div class="borg-lista" id="borgLista"></div>
+    <div class="actions">
+      <button class="secondary" id="btnFecharBorg">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* =========================================================================
    CONFIGURAÇÃO — troque pela URL do seu Web App do Google Apps Script
@@ -212,6 +250,7 @@ let sessao = {
 let alunos = [];
 let alunoAtual = null; // usuario do aluno selecionado (visão treinador) ou o próprio (visão aluno)
 let charts = {};
+let pseSelecionado = null;
 
 /* ============================= API ============================= */
 async function chamarApi(payload) {
@@ -317,6 +356,57 @@ async function iniciarApp() {
 
 if (sessao.token) { iniciarApp().catch(() => mostrarLogin()); }
 
+/* ============================= ESCALA DE BORG (seleção de PSE por clique) =============================
+   Escala de Borg adaptada (CR-10) — Percepção Subjetiva de Esforço.
+   Gradiente de cor acompanha a intensidade: verde (leve) → dourado (moderado) → vermelho (intenso).
+============================================================================= */
+const BORG_ESCALA = [
+  { v:0,  label:'Repouso',            emoji:'😴', cor:'#45454E' },
+  { v:1,  label:'Demasiado leve',     emoji:'🙂', cor:'#4F8F63' },
+  { v:2,  label:'Muito muito leve',   emoji:'🙂', cor:'#63A56A' },
+  { v:3,  label:'Muito leve',         emoji:'😊', cor:'#7BC47F' },
+  { v:4,  label:'Leve',               emoji:'🙂', cor:'#A8C769' },
+  { v:5,  label:'Leve – Moderado',    emoji:'😐', cor:'#D4A93A' },
+  { v:6,  label:'Moderado',           emoji:'😐', cor:'#D99A3A' },
+  { v:7,  label:'Moderado – Intenso', emoji:'😕', cor:'#DE8A3A' },
+  { v:8,  label:'Intenso',            emoji:'😣', cor:'#E17A4A' },
+  { v:9,  label:'Muito intenso',      emoji:'😖', cor:'#D96450' },
+  { v:10, label:'Exaustivo',          emoji:'🥵', cor:'#C0392B' },
+];
+
+function renderBorgLista() {
+  const el = document.getElementById('borgLista');
+  el.innerHTML = BORG_ESCALA.map(b => `
+    <div class="borg-row${pseSelecionado === b.v ? ' selecionada' : ''}" data-v="${b.v}" style="background:${b.cor}">
+      <span class="borg-num">${b.v}</span>
+      <span class="borg-label">${b.label}</span>
+      <span class="borg-emoji">${b.emoji}</span>
+    </div>
+  `).join('');
+  el.querySelectorAll('.borg-row').forEach(row => {
+    row.addEventListener('click', () => selecionarPse(Number(row.dataset.v)));
+  });
+}
+
+function selecionarPse(v) {
+  pseSelecionado = v;
+  const info = BORG_ESCALA.find(b => b.v === v);
+  const campoOculto = document.getElementById('fPse');
+  if (campoOculto) campoOculto.value = v;
+  const textoEl = document.getElementById('pseTriggerTexto');
+  if (textoEl) textoEl.textContent = v + ' — ' + info.label;
+  const trigger = document.getElementById('btnAbrirBorg');
+  if (trigger) {
+    trigger.classList.add('selecionado');
+    trigger.style.borderLeftColor = info.cor;
+  }
+  document.getElementById('modalBorg').classList.add('hidden');
+}
+
+document.getElementById('btnFecharBorg').addEventListener('click', () => {
+  document.getElementById('modalBorg').classList.add('hidden');
+});
+
 /* ============================= ALUNOS (visão treinador) ============================= */
 async function carregarAlunos() {
   const data = await chamarApi({ action: 'listAlunos' });
@@ -390,8 +480,15 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
 
     <form class="session-form" id="formSessao">
       <div class="field"><label>Data</label><input type="date" id="fData" value="${hojeISO()}"></div>
-      <div class="field"><label>PSE (Borg 0–10)</label><input type="number" id="fPse" min="0" max="10" step="0.5" placeholder="ex: 6"></div>
-      <div class="field"><label>Tempo da sessão (min)</label><input type="number" id="fTempo" min="1" step="1" placeholder="ex: 60"></div>
+      <div class="field">
+        <label>PSE (Escala de Borg 0–10)</label>
+        <input type="hidden" id="fPse">
+        <button type="button" class="pse-trigger" id="btnAbrirBorg">
+          <span id="pseTriggerTexto">Toque para selecionar</span><span class="seta">▾</span>
+        </button>
+      </div>
+      <div class="field"><label>Horas (opcional)</label><input type="number" id="fTempoHoras" min="0" step="1" placeholder="ex: 1"></div>
+      <div class="field"><label>Minutos*</label><input type="number" id="fTempoMinutos" min="0" max="59" step="1" placeholder="ex: 30"></div>
       <div class="field full"><label>Observações (opcional)</label><input id="fObs" placeholder="ex: treino de força, bloco de potência..."></div>
       <div class="field"><button id="btnSalvarSessao" style="width:100%">Salvar sessão</button></div>
       <div class="full" id="msgSessao"></div>
@@ -417,6 +514,12 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
   renderCardsMetricas(analise);
   renderGraficos(analise);
 
+  pseSelecionado = null;
+  document.getElementById('btnAbrirBorg').addEventListener('click', () => {
+    renderBorgLista();
+    document.getElementById('modalBorg').classList.remove('hidden');
+  });
+
   document.getElementById('btnSalvarSessao').addEventListener('click', async (ev) => {
     ev.preventDefault();
     await salvarSessao(usuarioAluno, souTreinador);
@@ -426,19 +529,37 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
 async function salvarSessao(usuarioAluno, souTreinador) {
   const data = document.getElementById('fData').value;
   const pse = document.getElementById('fPse').value;
-  const tempo = document.getElementById('fTempo').value;
+  const horasStr = document.getElementById('fTempoHoras').value;
+  const minutosStr = document.getElementById('fTempoMinutos').value;
   const obs = document.getElementById('fObs').value;
   const msgEl = document.getElementById('msgSessao');
   const btn = document.getElementById('btnSalvarSessao');
 
   msgEl.innerHTML = '';
+
+  if (pse === '' || pse === null) {
+    msgEl.innerHTML = '<div class="msg-erro">Selecione o PSE na escala de Borg.</div>';
+    return;
+  }
+  if (minutosStr === '' || minutosStr === null) {
+    msgEl.innerHTML = '<div class="msg-erro">Informe os minutos da sessão (as horas são opcionais).</div>';
+    return;
+  }
+  const horas = Number(horasStr) || 0;
+  const minutos = Number(minutosStr) || 0;
+  const tempoTotalMin = horas * 60 + minutos;
+  if (tempoTotalMin <= 0) {
+    msgEl.innerHTML = '<div class="msg-erro">O tempo total da sessão deve ser maior que 0.</div>';
+    return;
+  }
+
   btn.disabled = true;
   try {
-    const payload = { action: 'addSessao', data, pse, tempo_min: tempo, observacoes: obs };
+    const payload = { action: 'addSessao', data, pse, tempo_min: tempoTotalMin, observacoes: obs };
     if (souTreinador) payload.aluno_usuario = usuarioAluno;
     const resp = await chamarApi(payload);
     if (!resp.ok) { msgEl.innerHTML = '<div class="msg-erro">' + escapeHtml(resp.erro) + '</div>'; return; }
-    msgEl.innerHTML = '<div class="msg-ok">Sessão salva! Carga: ' + resp.carga_ua + ' u.a.</div>';
+    msgEl.innerHTML = '<div class="msg-ok">Sessão salva! Carga: ' + resp.carga_ua + ' u.a. (' + tempoTotalMin + ' min)</div>';
     const nomeAtual = souTreinador ? (alunos.find(a => a.usuario === usuarioAluno) || {}).nome : sessao.nome;
     await renderPainelAluno(usuarioAluno, nomeAtual || usuarioAluno, souTreinador);
   } finally {
@@ -594,28 +715,35 @@ function renderGraficos(analise) {
   Chart.defaults.color = cores.texto;
   Chart.defaults.borderColor = cores.grid;
 
+  const corPorClassificacao = (cor) => cor === 'verde' ? cores.verde : cor === 'vermelho' ? cores.vermelho : cor === 'dourado' ? cores.dourado : 'rgba(181,181,181,.35)';
+
   charts.chartCarga = new Chart(document.getElementById('chartCarga'), {
     type: 'bar',
-    data: { labels, datasets: [{ label: 'Carga semanal (u.a.)', data: analise.semanas.map(s => s.cargaSemanal), backgroundColor: cores.dourado }] },
+    data: { labels, datasets: [{ label: 'Carga semanal (u.a.)', data: analise.semanas.map(s => s.cargaSemanal), backgroundColor: cores.dourado, borderRadius:4 }] },
     options: { responsive:true, plugins:{legend:{display:false}} }
   });
 
+  const coresAcwr = analise.semanas.map(s => corPorClassificacao(classificarAcwr(s.acwr).cor));
+
   charts.chartAcwr = new Chart(document.getElementById('chartAcwr'), {
-    type: 'line',
+    type: 'bar',
     data: { labels, datasets: [
-      { label: 'ACWR', data: analise.semanas.map(s => s.acwr), borderColor: cores.douradoClaro, backgroundColor: 'transparent', spanGaps:true, tension:.25 },
-      { label: 'Limite zona ótima (0.8)', data: labels.map(()=>0.8), borderColor: cores.verde, borderDash:[5,5], pointRadius:0 },
-      { label: 'Limite zona ótima (1.3)', data: labels.map(()=>1.3), borderColor: cores.verde, borderDash:[5,5], pointRadius:0 },
-      { label: 'Risco alto (1.5)', data: labels.map(()=>1.5), borderColor: cores.vermelho, borderDash:[5,5], pointRadius:0 },
+      { type:'bar', label: 'ACWR', data: analise.semanas.map(s => s.acwr), backgroundColor: coresAcwr, borderRadius:4, order:2 },
+      { type:'line', label: 'Zona ótima (0.8)', data: labels.map(()=>0.8), borderColor: cores.verde, borderDash:[5,5], pointRadius:0, order:1 },
+      { type:'line', label: 'Zona ótima (1.3)', data: labels.map(()=>1.3), borderColor: cores.verde, borderDash:[5,5], pointRadius:0, order:1 },
+      { type:'line', label: 'Risco alto (1.5)', data: labels.map(()=>1.5), borderColor: cores.vermelho, borderDash:[5,5], pointRadius:0, order:1 },
     ]},
     options: { responsive:true, plugins:{legend:{labels:{boxWidth:12,font:{size:10}}}} }
   });
 
+  const coresMono = analise.semanas.map(s => corPorClassificacao(classificarMonotonia(s.monotonia).cor));
+  const coresStrain = analise.semanas.map(s => corPorClassificacao(classificarStrain(s.strain).cor));
+
   charts.chartMonotoniaStrain = new Chart(document.getElementById('chartMonotoniaStrain'), {
-    type: 'line',
+    type: 'bar',
     data: { labels, datasets: [
-      { label:'Monotonia', data: analise.semanas.map(s=>s.monotonia), borderColor: cores.azul, yAxisID:'y', tension:.25, spanGaps:true },
-      { label:'Strain', data: analise.semanas.map(s=>s.strain), borderColor: cores.dourado, yAxisID:'y1', tension:.25, spanGaps:true },
+      { label:'Monotonia', data: analise.semanas.map(s=>s.monotonia), backgroundColor: coresMono, yAxisID:'y', borderRadius:4 },
+      { label:'Strain', data: analise.semanas.map(s=>s.strain), backgroundColor: coresStrain, yAxisID:'y1', borderRadius:4 },
     ]},
     options: {
       responsive:true,
