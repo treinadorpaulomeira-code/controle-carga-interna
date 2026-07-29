@@ -852,6 +852,7 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
     <div class="grid" id="cardsMetricas"></div>
 
     <div class="chart-wrap"><h3>Carga interna semanal (u.a.)</h3><canvas id="chartCarga"></canvas></div>
+    <div class="chart-wrap"><h3>Ondulação diária de carga (semana atual)</h3><canvas id="chartCargaDiaria"></canvas></div>
     <div class="chart-wrap"><h3>Razão Agudo:Crônica (ACWR)</h3><canvas id="chartAcwr"></canvas></div>
     <div class="chart-wrap"><h3>Monotonia e Strain semanais</h3><canvas id="chartMonotoniaStrain"></canvas></div>
 
@@ -1011,11 +1012,17 @@ function analisarCargaInterna(sessoes) {
     const desvio = desvioPadraoPopulacional(dias);
     const monotonia = desvio > 0 ? media / desvio : null;
     const strain = monotonia !== null ? cargaSemanal * monotonia : null;
+    const diasDetalhado = dias.map((carga, i) => {
+      const d = new Date(cursor);
+      d.setDate(d.getDate() + i);
+      return { data: isoDate(d), carga: round2(carga) };
+    });
     semanas.push({
       inicio: isoDate(cursor),
       cargaSemanal: round2(cargaSemanal),
       monotonia: monotonia !== null ? round2(monotonia) : null,
       strain: strain !== null ? round2(strain) : null,
+      diasDetalhado,
     });
     cursor.setDate(cursor.getDate() + 7);
   }
@@ -1105,7 +1112,7 @@ function renderCardsMetricas(analise) {
 
 /* ============================= RENDER: GRÁFICOS ============================= */
 function renderGraficos(analise) {
-  ['chartCarga','chartAcwr','chartMonotoniaStrain'].forEach(id => {
+  ['chartCarga','chartCargaDiaria','chartAcwr','chartMonotoniaStrain'].forEach(id => {
     if (charts[id]) { charts[id].destroy(); delete charts[id]; }
   });
   if (analise.vazio) return;
@@ -1128,6 +1135,18 @@ function renderGraficos(analise) {
   charts.chartCarga = new Chart(document.getElementById('chartCarga'), {
     type: 'bar',
     data: { labels, datasets: [{ label: 'Carga semanal (u.a.)', data: analise.semanas.map(s => s.cargaSemanal), backgroundColor: cores.dourado, borderRadius:4 }] },
+    options: { responsive:true, plugins:{legend:{display:false}} }
+  });
+
+  const diasSemanaAbrev = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  const semanaAtual = analise.semanas[analise.semanas.length - 1];
+  const labelsDiarios = semanaAtual.diasDetalhado.map((d, i) => diasSemanaAbrev[i] + ' ' + formatarDataBR(d.data));
+  const hojeIsoAtual = hojeISO();
+  const coresDiarias = semanaAtual.diasDetalhado.map(d => d.data === hojeIsoAtual ? cores.dourado : cores.douradoClaro);
+
+  charts.chartCargaDiaria = new Chart(document.getElementById('chartCargaDiaria'), {
+    type: 'bar',
+    data: { labels: labelsDiarios, datasets: [{ label: 'Carga diária (u.a.)', data: semanaAtual.diasDetalhado.map(d => d.carga), backgroundColor: coresDiarias, borderRadius:4 }] },
     options: { responsive:true, plugins:{legend:{display:false}} }
   });
 
