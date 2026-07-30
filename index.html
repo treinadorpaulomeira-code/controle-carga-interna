@@ -333,23 +333,48 @@ let charts = {};
 let pseSelecionado = null;
 
 /* ============================= API ============================= */
+// Tempo máximo de espera por uma chamada à API antes de desistir e avisar o usuário
+// (evita a sensação de "travou" quando o Apps Script demora demais ou não responde).
+const API_TIMEOUT_MS = 20000;
+
 async function chamarApi(payload) {
   if (!API_URL || API_URL.indexOf('COLE_AQUI') !== -1) {
     alert('Configure a constante API_URL no topo do index.html com a URL do seu Web App do Google Apps Script.');
-    throw new Error('API_URL não configurada');
+    return { ok: false, erro: 'API_URL não configurada.' };
   }
   const body = Object.assign({}, payload, { token: sessao.token });
-  const resp = await fetch(API_URL, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
-  const rawText = await resp.text();
+
+  let resp, rawText;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    try {
+      resp = await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    rawText = await resp.text();
+  } catch (networkErr) {
+    console.error('Falha de rede/timeout ao chamar a API:', networkErr);
+    const msg = networkErr && networkErr.name === 'AbortError'
+      ? 'O servidor demorou demais para responder. Tente novamente.'
+      : 'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.';
+    return { ok: false, erro: msg };
+  }
+
+  // Qualquer falha a partir daqui (resposta que não é JSON válido, por exemplo) é normalizada
+  // em { ok:false, erro:... } em vez de lançar uma exceção — assim os botões de salvar/editar/excluir
+  // sempre mostram uma mensagem de erro visível em vez de simplesmente "não fazer nada".
   let data;
   try {
     data = JSON.parse(rawText);
   } catch (parseErr) {
     console.error('Resposta inesperada da API (status ' + resp.status + '): ' + rawText.slice(0, 300));
-    throw parseErr;
+    return { ok: false, erro: 'Resposta inesperada do servidor. Tente novamente em alguns segundos.' };
   }
   if (data.erro === 'Sessão inválida ou expirada. Faça login novamente.') {
     encerrarSessaoLocal();
@@ -425,8 +450,17 @@ async function iniciarApp() {
 
   if (sessao.role === 'treinador') {
     document.getElementById('sidebarTreinador').classList.remove('hidden');
-    await carregarAlunos();
-    await renderVisaoGeralTreinador();
+    // As duas chamadas abaixo eram feitas uma depois da outra (esperando a lista de alunos terminar
+    // para só então buscar as sessões), o que soma o tempo de duas viagens ao servidor do Apps Script
+    // antes de mostrar qualquer coisa. Como uma não depende da outra, disparamos as duas ao mesmo tempo
+    // e cortamos praticamente pela metade o tempo de carregamento inicial do painel do treinador.
+    const [respAlunos, respSessoesTodos] = await Promise.all([
+      chamarApi({ action: 'listAlunos' }),
+      chamarApi({ action: 'getSessoesTodos' }),
+    ]);
+    alunos = respAlunos.ok ? respAlunos.alunos : [];
+    renderListaAlunos();
+    await renderVisaoGeralTreinador(respSessoesTodos);
   } else {
     document.getElementById('sidebarTreinador').classList.add('hidden');
     alunoAtual = sessao.usuario;
@@ -759,6 +793,12 @@ async function selecionarAluno(aluno) {
 
 document.getElementById('btnRelatorioGeral').addEventListener('click', async () => {
   alunoAtual = null;
+  // Destrói os gráficos do painel individual antes de remover o HTML deles — sem isso, as instâncias
+  // do Chart.js ficam "vivas" em segundo plano (apontando para um canvas que não existe mais) e vão se
+  // acumulando a cada troca entre um aluno e o Relatório geral, deixando o site cada vez mais pesado.
+  ['chartCarga','chartCargaDiaria','chartAcwr','chartMonotoniaStrain'].forEach(id => {
+    if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+  });
   document.getElementById('painelAluno').innerHTML = '';
   renderListaAlunos();
   await renderVisaoGeralTreinador();
@@ -786,8 +826,12 @@ document.getElementById('btnSalvarNovoAluno').addEventListener('click', async ()
   await carregarAlunos();
 });
 
-/* ============================= VISÃO GERAL (treinador, sem aluno selecionado) — RELATÓRIO GERAL ============================= */
-async function renderVisaoGeralTreinador() {
+/* ============================= VISÃO GERAL (treinador, sem aluno selecionado) — RELATÓRIO GERAL =============================
+   respPreCarregado: opcional — resultado de { action:'getSessoesTodos' } já buscado antecipadamente
+   (usado na carga inicial do painel do treinador, em paralelo com a lista de alunos, para não fazer
+   duas viagens ao servidor uma atrás da outra). Quando chamada depois (ex: clique em "Relatório geral"),
+   busca os dados normalmente. */
+async function renderVisaoGeralTreinador(respPreCarregado) {
   document.getElementById('painelAluno').innerHTML = '';
   const el = document.getElementById('visaoGeral');
   if (alunos.length === 0) {
@@ -797,7 +841,7 @@ async function renderVisaoGeralTreinador() {
 
   el.innerHTML = '<p style="color:var(--text-dim)">Carregando relatório geral...</p>';
 
-  const resp = await chamarApi({ action: 'getSessoesTodos' });
+  const resp = respPreCarregado || await chamarApi({ action: 'getSessoesTodos' });
   const todasSessoes = resp.ok ? resp.sessoes : [];
 
   const porAluno = {};
