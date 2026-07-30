@@ -103,6 +103,10 @@
   .badge.vermelho{background:rgba(224,123,123,.18);color:var(--red);}
   .badge.neutro{background:rgba(181,181,181,.15);color:var(--text-dim);}
 
+  .checkbox-field{display:flex;align-items:center;}
+  .checkbox-label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-dim);cursor:pointer;user-select:none;}
+  .checkbox-label input[type="checkbox"]{width:16px;height:16px;accent-color:var(--gold);cursor:pointer;}
+
   .chart-wrap{background:var(--bg-panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:22px;}
   .chart-wrap h3{margin:0 0 12px;font-size:14px;color:var(--gold-light);}
   canvas{max-height:260px;}
@@ -232,15 +236,18 @@
   <div class="modal">
     <h3>Editar sessão</h3>
     <div class="field"><label>Data</label><input type="date" id="eData"></div>
-    <div class="field">
-      <label>PSE (Escala de Borg 0–10)</label>
-      <input type="hidden" id="ePse">
-      <button type="button" class="pse-trigger" id="btnAbrirBorgEdicao">
-        <span id="pseTriggerTextoEdicao">Toque para selecionar</span><span class="seta">▾</span>
-      </button>
+    <div class="field checkbox-field"><label class="checkbox-label"><input type="checkbox" id="eDescansoDia"> Dia de descanso (não treinou)</label></div>
+    <div id="camposTreinoEdicao" style="display:contents">
+      <div class="field">
+        <label>PSE (Escala de Borg 0–10)</label>
+        <input type="hidden" id="ePse">
+        <button type="button" class="pse-trigger" id="btnAbrirBorgEdicao">
+          <span id="pseTriggerTextoEdicao">Toque para selecionar</span><span class="seta">▾</span>
+        </button>
+      </div>
+      <div class="field"><label>Horas (opcional)</label><input type="number" id="eTempoHoras" min="0" step="1" placeholder="ex: 1"></div>
+      <div class="field"><label>Minutos*</label><input type="number" id="eTempoMinutos" min="0" max="59" step="1" placeholder="ex: 30"></div>
     </div>
-    <div class="field"><label>Horas (opcional)</label><input type="number" id="eTempoHoras" min="0" step="1" placeholder="ex: 1"></div>
-    <div class="field"><label>Minutos*</label><input type="number" id="eTempoMinutos" min="0" max="59" step="1" placeholder="ex: 30"></div>
     <div class="field"><label>Observações (opcional)</label><input id="eObs" placeholder="ex: treino de força, bloco de potência..."></div>
     <div id="editarSessaoMsg"></div>
     <div class="actions">
@@ -497,6 +504,10 @@ document.getElementById('btnAbrirBorgEdicao').addEventListener('click', () => {
   abrirModalBorg({ hidden: 'ePse', texto: 'pseTriggerTextoEdicao', trigger: 'btnAbrirBorgEdicao' });
 });
 
+document.getElementById('eDescansoDia').addEventListener('change', (ev) => {
+  document.getElementById('camposTreinoEdicao').style.display = ev.target.checked ? 'none' : 'contents';
+});
+
 /* ============================= EDITAR / EXCLUIR SESSÃO ============================= */
 let sessoesAtuais = [];
 let anotacoesAtuais = [];
@@ -518,20 +529,30 @@ function abrirEdicaoSessao(id) {
   if (!s) return;
   sessaoEditandoId = id;
 
+  const isDescanso = s.tipo === 'descanso';
+
   document.getElementById('eData').value = s.data;
   document.getElementById('eObs').value = s.observacoes || '';
+  document.getElementById('eDescansoDia').checked = isDescanso;
+  document.getElementById('camposTreinoEdicao').style.display = isDescanso ? 'none' : 'contents';
+  document.getElementById('editarSessaoMsg').innerHTML = '';
+
   const tempoTotal = Number(s.tempo_min) || 0;
   const horas = Math.floor(tempoTotal / 60);
   const minutos = tempoTotal % 60;
-  document.getElementById('eTempoHoras').value = horas > 0 ? horas : '';
-  document.getElementById('eTempoMinutos').value = minutos;
-  document.getElementById('editarSessaoMsg').innerHTML = '';
+  document.getElementById('eTempoHoras').value = isDescanso ? '' : (horas > 0 ? horas : '');
+  document.getElementById('eTempoMinutos').value = isDescanso ? '' : minutos;
 
-  document.getElementById('ePse').value = s.pse;
-  const infoPse = BORG_ESCALA.find(b => b.v === Number(s.pse));
   const trigger = document.getElementById('btnAbrirBorgEdicao');
-  document.getElementById('pseTriggerTextoEdicao').textContent = s.pse + (infoPse ? ' — ' + infoPse.label : '');
-  if (infoPse) { trigger.classList.add('selecionado'); trigger.style.borderLeftColor = infoPse.cor; }
+  trigger.classList.remove('selecionado');
+  trigger.style.borderLeftColor = '';
+  document.getElementById('ePse').value = isDescanso ? '' : s.pse;
+  document.getElementById('pseTriggerTextoEdicao').textContent = 'Toque para selecionar';
+  if (!isDescanso) {
+    const infoPse = BORG_ESCALA.find(b => b.v === Number(s.pse));
+    document.getElementById('pseTriggerTextoEdicao').textContent = s.pse + (infoPse ? ' — ' + infoPse.label : '');
+    if (infoPse) { trigger.classList.add('selecionado'); trigger.style.borderLeftColor = infoPse.cor; }
+  }
 
   document.getElementById('modalEditarSessao').classList.remove('hidden');
 }
@@ -543,24 +564,32 @@ document.getElementById('btnCancelarEdicao').addEventListener('click', () => {
 document.getElementById('btnSalvarEdicao').addEventListener('click', async () => {
   const msgEl = document.getElementById('editarSessaoMsg');
   const data = document.getElementById('eData').value;
-  const pse = document.getElementById('ePse').value;
-  const horasStr = document.getElementById('eTempoHoras').value;
-  const minutosStr = document.getElementById('eTempoMinutos').value;
   const obs = document.getElementById('eObs').value;
+  const descanso = document.getElementById('eDescansoDia').checked;
   const btn = document.getElementById('btnSalvarEdicao');
 
   msgEl.innerHTML = '';
   if (!data) { msgEl.innerHTML = '<div class="msg-erro">Informe a data.</div>'; return; }
-  if (pse === '' || pse === null) { msgEl.innerHTML = '<div class="msg-erro">Selecione o PSE na escala de Borg.</div>'; return; }
-  if (minutosStr === '' || minutosStr === null) { msgEl.innerHTML = '<div class="msg-erro">Informe os minutos (as horas são opcionais).</div>'; return; }
-  const horas = Number(horasStr) || 0;
-  const minutos = Number(minutosStr) || 0;
-  const tempoTotalMin = horas * 60 + minutos;
-  if (tempoTotalMin <= 0) { msgEl.innerHTML = '<div class="msg-erro">O tempo total da sessão deve ser maior que 0.</div>'; return; }
+
+  let payload;
+  if (descanso) {
+    payload = { action: 'editarSessao', id: sessaoEditandoId, data, tipo: 'descanso', observacoes: obs };
+  } else {
+    const pse = document.getElementById('ePse').value;
+    const horasStr = document.getElementById('eTempoHoras').value;
+    const minutosStr = document.getElementById('eTempoMinutos').value;
+    if (pse === '' || pse === null) { msgEl.innerHTML = '<div class="msg-erro">Selecione o PSE na escala de Borg.</div>'; return; }
+    if (minutosStr === '' || minutosStr === null) { msgEl.innerHTML = '<div class="msg-erro">Informe os minutos (as horas são opcionais).</div>'; return; }
+    const horas = Number(horasStr) || 0;
+    const minutos = Number(minutosStr) || 0;
+    const tempoTotalMin = horas * 60 + minutos;
+    if (tempoTotalMin <= 0) { msgEl.innerHTML = '<div class="msg-erro">O tempo total da sessão deve ser maior que 0.</div>'; return; }
+    payload = { action: 'editarSessao', id: sessaoEditandoId, data, pse, tempo_min: tempoTotalMin, tipo: 'treino', observacoes: obs };
+  }
 
   btn.disabled = true;
   try {
-    const resp = await chamarApi({ action: 'editarSessao', id: sessaoEditandoId, data, pse, tempo_min: tempoTotalMin, observacoes: obs });
+    const resp = await chamarApi(payload);
     if (!resp.ok) { msgEl.innerHTML = '<div class="msg-erro">' + escapeHtml(resp.erro) + '</div>'; return; }
     document.getElementById('modalEditarSessao').classList.add('hidden');
     await recarregarPainelAtual();
@@ -573,8 +602,9 @@ function abrirExclusaoSessao(id) {
   const s = sessoesAtuais.find(x => String(x.id) === String(id));
   if (!s) return;
   sessaoExcluindoId = id;
-  document.getElementById('excluirSessaoInfo').textContent =
-    'Sessão de ' + formatarDataBR(s.data) + ' — PSE ' + s.pse + ', ' + s.tempo_min + ' min, ' + s.carga_ua + ' u.a.';
+  document.getElementById('excluirSessaoInfo').textContent = s.tipo === 'descanso'
+    ? 'Dia de descanso de ' + formatarDataBR(s.data)
+    : 'Sessão de ' + formatarDataBR(s.data) + ' — PSE ' + s.pse + ', ' + s.tempo_min + ' min, ' + s.carga_ua + ' u.a.';
   document.getElementById('excluirSessaoMsg').innerHTML = '';
   document.getElementById('modalExcluirSessao').classList.remove('hidden');
 }
@@ -721,6 +751,7 @@ function renderListaAlunos() {
 
 async function selecionarAluno(aluno) {
   alunoAtual = aluno.usuario;
+  if (charts.chartCargaDiariaEquipe) { charts.chartCargaDiariaEquipe.destroy(); delete charts.chartCargaDiariaEquipe; }
   document.getElementById('visaoGeral').innerHTML = '';
   renderListaAlunos();
   await renderPainelAluno(aluno.usuario, aluno.nome, true);
@@ -795,9 +826,31 @@ async function renderVisaoGeralTreinador() {
 
   linhas.sort((x, y) => PRIORIDADE[x.cAcwr.cor] - PRIORIDADE[y.cAcwr.cor]);
 
+  // Ondulação diária da equipe: soma da carga de todos os alunos, dia a dia, na semana atual (seg a dom).
+  const segAtual = segundaDaSemana(new Date());
+  const diasSemanaEquipeIso = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(segAtual);
+    d.setDate(d.getDate() + i);
+    diasSemanaEquipeIso.push(isoDate(d));
+  }
+  const cargaPorDiaEquipe = {};
+  diasSemanaEquipeIso.forEach(iso => { cargaPorDiaEquipe[iso] = 0; });
+  todasSessoes.forEach(s => {
+    if (Object.prototype.hasOwnProperty.call(cargaPorDiaEquipe, s.data)) {
+      cargaPorDiaEquipe[s.data] += Number(s.carga_ua);
+    }
+  });
+
   el.innerHTML = `
     <h2 style="color:var(--gold-light);margin-top:0;">Relatório geral</h2>
     <div class="info-note">Panorama de todos os alunos: carga da semana atual, carga do mês e classificação de Monotonia, Strain e ACWR. Clique em um aluno na lista à esquerda para ver o detalhe completo.</div>
+
+    <div class="chart-wrap">
+      <h3>Ondulação diária de carga — equipe (semana atual)</h3>
+      <canvas id="chartCargaDiariaEquipe"></canvas>
+    </div>
+
     <div class="chart-wrap">
       <table>
         <thead><tr>
@@ -815,6 +868,28 @@ async function renderVisaoGeralTreinador() {
       </table>
     </div>
   `;
+
+  renderGraficoEquipe(diasSemanaEquipeIso, cargaPorDiaEquipe);
+}
+
+function renderGraficoEquipe(diasIso, cargaPorDia) {
+  if (charts.chartCargaDiariaEquipe) { charts.chartCargaDiariaEquipe.destroy(); delete charts.chartCargaDiariaEquipe; }
+
+  const cores = { dourado: '#D4A93A', douradoClaro: '#E8C46B', texto: '#B5B5B5', grid: 'rgba(255,255,255,.06)' };
+  Chart.defaults.color = cores.texto;
+  Chart.defaults.borderColor = cores.grid;
+
+  const diasSemanaAbrev = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  const hojeIsoAtual = hojeISO();
+  const labels = diasIso.map((iso, i) => diasSemanaAbrev[i] + ' ' + formatarDataBR(iso));
+  const dados = diasIso.map(iso => round2(cargaPorDia[iso]));
+  const coresBarras = diasIso.map(iso => iso === hojeIsoAtual ? cores.dourado : cores.douradoClaro);
+
+  charts.chartCargaDiariaEquipe = new Chart(document.getElementById('chartCargaDiariaEquipe'), {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Carga diária da equipe (u.a.)', data: dados, backgroundColor: coresBarras, borderRadius:4, minBarLength:4 }] },
+    options: { responsive:true, plugins:{legend:{display:false}} }
+  });
 }
 
 /* ============================= PAINEL DO ALUNO (sessões + gráficos) ============================= */
@@ -835,15 +910,18 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
 
     <form class="session-form" id="formSessao">
       <div class="field"><label>Data</label><input type="date" id="fData" value="${hojeISO()}"></div>
-      <div class="field">
-        <label>PSE (Escala de Borg 0–10)</label>
-        <input type="hidden" id="fPse">
-        <button type="button" class="pse-trigger" id="btnAbrirBorg">
-          <span id="pseTriggerTexto">Toque para selecionar</span><span class="seta">▾</span>
-        </button>
+      <div class="field full checkbox-field"><label class="checkbox-label"><input type="checkbox" id="fDescanso"> Dia de descanso (não treinou)</label></div>
+      <div id="camposTreino" style="display:contents">
+        <div class="field">
+          <label>PSE (Escala de Borg 0–10)</label>
+          <input type="hidden" id="fPse">
+          <button type="button" class="pse-trigger" id="btnAbrirBorg">
+            <span id="pseTriggerTexto">Toque para selecionar</span><span class="seta">▾</span>
+          </button>
+        </div>
+        <div class="field"><label>Horas (opcional)</label><input type="number" id="fTempoHoras" min="0" step="1" placeholder="ex: 1"></div>
+        <div class="field"><label>Minutos*</label><input type="number" id="fTempoMinutos" min="0" max="59" step="1" placeholder="ex: 30"></div>
       </div>
-      <div class="field"><label>Horas (opcional)</label><input type="number" id="fTempoHoras" min="0" step="1" placeholder="ex: 1"></div>
-      <div class="field"><label>Minutos*</label><input type="number" id="fTempoMinutos" min="0" max="59" step="1" placeholder="ex: 30"></div>
       <div class="field full"><label>Observações (opcional)</label><input id="fObs" placeholder="ex: treino de força, bloco de potência..."></div>
       <div class="field"><button id="btnSalvarSessao" style="width:100%">Salvar sessão</button></div>
       <div class="full" id="msgSessao"></div>
@@ -861,7 +939,7 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
       <table>
         <thead><tr><th>Data</th><th>PSE</th><th>Tempo (min)</th><th>Carga (u.a.)</th><th>Obs.</th><th>Ações</th></tr></thead>
         <tbody>${sessoes.slice().reverse().slice(0,15).map(s => `<tr>
-          <td>${formatarDataBR(s.data)}</td><td>${s.pse}</td><td>${s.tempo_min}</td><td>${s.carga_ua}</td><td>${escapeHtml(s.observacoes||'')}</td>
+          <td>${formatarDataBR(s.data)}</td><td>${s.tipo === 'descanso' ? '—' : s.pse}</td><td>${s.tipo === 'descanso' ? '—' : s.tempo_min}</td><td>${s.tipo === 'descanso' ? '<span class="badge neutro">Descanso</span>' : s.carga_ua}</td><td>${escapeHtml(s.observacoes||'')}</td>
           <td class="acoes-cell">
             <button type="button" class="small secondary btn-editar-sessao" data-id="${s.id}">Editar</button>
             <button type="button" class="small btn-excluir-sessao" data-id="${s.id}">Excluir</button>
@@ -910,6 +988,10 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
     abrirModalBorg({ hidden: 'fPse', texto: 'pseTriggerTexto', trigger: 'btnAbrirBorg' });
   });
 
+  document.getElementById('fDescanso').addEventListener('change', (ev) => {
+    document.getElementById('camposTreino').style.display = ev.target.checked ? 'none' : 'contents';
+  });
+
   document.getElementById('btnSalvarSessao').addEventListener('click', async (ev) => {
     ev.preventDefault();
     await salvarSessao(usuarioAluno, souTreinador);
@@ -937,38 +1019,51 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
 
 async function salvarSessao(usuarioAluno, souTreinador) {
   const data = document.getElementById('fData').value;
-  const pse = document.getElementById('fPse').value;
-  const horasStr = document.getElementById('fTempoHoras').value;
-  const minutosStr = document.getElementById('fTempoMinutos').value;
+  const descanso = document.getElementById('fDescanso').checked;
   const obs = document.getElementById('fObs').value;
   const msgEl = document.getElementById('msgSessao');
   const btn = document.getElementById('btnSalvarSessao');
 
   msgEl.innerHTML = '';
 
-  if (pse === '' || pse === null) {
-    msgEl.innerHTML = '<div class="msg-erro">Selecione o PSE na escala de Borg.</div>';
+  if (!data) {
+    msgEl.innerHTML = '<div class="msg-erro">Informe a data.</div>';
     return;
   }
-  if (minutosStr === '' || minutosStr === null) {
-    msgEl.innerHTML = '<div class="msg-erro">Informe os minutos da sessão (as horas são opcionais).</div>';
-    return;
-  }
-  const horas = Number(horasStr) || 0;
-  const minutos = Number(minutosStr) || 0;
-  const tempoTotalMin = horas * 60 + minutos;
-  if (tempoTotalMin <= 0) {
-    msgEl.innerHTML = '<div class="msg-erro">O tempo total da sessão deve ser maior que 0.</div>';
-    return;
+
+  let payload;
+  if (descanso) {
+    payload = { action: 'addSessao', data, tipo: 'descanso', observacoes: obs };
+  } else {
+    const pse = document.getElementById('fPse').value;
+    const horasStr = document.getElementById('fTempoHoras').value;
+    const minutosStr = document.getElementById('fTempoMinutos').value;
+    if (pse === '' || pse === null) {
+      msgEl.innerHTML = '<div class="msg-erro">Selecione o PSE na escala de Borg.</div>';
+      return;
+    }
+    if (minutosStr === '' || minutosStr === null) {
+      msgEl.innerHTML = '<div class="msg-erro">Informe os minutos da sessão (as horas são opcionais).</div>';
+      return;
+    }
+    const horas = Number(horasStr) || 0;
+    const minutos = Number(minutosStr) || 0;
+    const tempoTotalMin = horas * 60 + minutos;
+    if (tempoTotalMin <= 0) {
+      msgEl.innerHTML = '<div class="msg-erro">O tempo total da sessão deve ser maior que 0.</div>';
+      return;
+    }
+    payload = { action: 'addSessao', data, pse, tempo_min: tempoTotalMin, tipo: 'treino', observacoes: obs };
   }
 
   btn.disabled = true;
   try {
-    const payload = { action: 'addSessao', data, pse, tempo_min: tempoTotalMin, observacoes: obs };
     if (souTreinador) payload.aluno_usuario = usuarioAluno;
     const resp = await chamarApi(payload);
     if (!resp.ok) { msgEl.innerHTML = '<div class="msg-erro">' + escapeHtml(resp.erro) + '</div>'; return; }
-    msgEl.innerHTML = '<div class="msg-ok">Sessão salva! Carga: ' + resp.carga_ua + ' u.a. (' + tempoTotalMin + ' min)</div>';
+    msgEl.innerHTML = descanso
+      ? '<div class="msg-ok">Dia de descanso registrado.</div>'
+      : '<div class="msg-ok">Sessão salva! Carga: ' + resp.carga_ua + ' u.a.</div>';
     const nomeAtual = souTreinador ? (alunos.find(a => a.usuario === usuarioAluno) || {}).nome : sessao.nome;
     await renderPainelAluno(usuarioAluno, nomeAtual || usuarioAluno, souTreinador);
   } finally {
@@ -989,13 +1084,19 @@ function analisarCargaInterna(sessoes) {
   if (!sessoes || sessoes.length === 0) return { semanas: [], vazio: true };
 
   const cargaPorDia = {}; // 'YYYY-MM-DD' -> soma de carga do dia
+  const descansoPorDia = {}; // 'YYYY-MM-DD' -> true se há um registro explícito de descanso nesse dia
   sessoes.forEach(s => {
     cargaPorDia[s.data] = (cargaPorDia[s.data] || 0) + Number(s.carga_ua);
+    if (s.tipo === 'descanso') descansoPorDia[s.data] = true;
   });
 
   const datas = Object.keys(cargaPorDia).sort();
   const primeiraSegunda = segundaDaSemana(new Date(datas[0] + 'T00:00:00'));
-  const ultimaData = new Date(datas[datas.length - 1] + 'T00:00:00');
+  const ultimaDataComSessao = new Date(datas[datas.length - 1] + 'T00:00:00');
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  // Sempre estende até a semana atual (hoje), mesmo que o último registro seja de semanas atrás —
+  // assim a semana em curso aparece corretamente, incluindo dias ainda sem nenhum lançamento.
+  const ultimaData = ultimaDataComSessao > hoje ? ultimaDataComSessao : hoje;
 
   const semanas = [];
   let cursor = new Date(primeiraSegunda);
@@ -1015,7 +1116,8 @@ function analisarCargaInterna(sessoes) {
     const diasDetalhado = dias.map((carga, i) => {
       const d = new Date(cursor);
       d.setDate(d.getDate() + i);
-      return { data: isoDate(d), carga: round2(carga) };
+      const iso = isoDate(d);
+      return { data: iso, carga: round2(carga), descanso: !!descansoPorDia[iso] };
     });
     semanas.push({
       inicio: isoDate(cursor),
@@ -1142,12 +1244,29 @@ function renderGraficos(analise) {
   const semanaAtual = analise.semanas[analise.semanas.length - 1];
   const labelsDiarios = semanaAtual.diasDetalhado.map((d, i) => diasSemanaAbrev[i] + ' ' + formatarDataBR(d.data));
   const hojeIsoAtual = hojeISO();
-  const coresDiarias = semanaAtual.diasDetalhado.map(d => d.data === hojeIsoAtual ? cores.dourado : cores.douradoClaro);
+  const corSemRegistro = 'rgba(181,181,181,.12)';
+  const corDescanso = 'rgba(181,181,181,.55)';
+  const coresDiarias = semanaAtual.diasDetalhado.map(d => {
+    if (d.carga > 0) return d.data === hojeIsoAtual ? cores.dourado : cores.douradoClaro;
+    if (d.descanso) return corDescanso;
+    return corSemRegistro;
+  });
 
   charts.chartCargaDiaria = new Chart(document.getElementById('chartCargaDiaria'), {
     type: 'bar',
-    data: { labels: labelsDiarios, datasets: [{ label: 'Carga diária (u.a.)', data: semanaAtual.diasDetalhado.map(d => d.carga), backgroundColor: coresDiarias, borderRadius:4 }] },
-    options: { responsive:true, plugins:{legend:{display:false}} }
+    data: { labels: labelsDiarios, datasets: [{ label: 'Carga diária (u.a.)', data: semanaAtual.diasDetalhado.map(d => d.carga), backgroundColor: coresDiarias, borderRadius:4, minBarLength:4 }] },
+    options: {
+      responsive:true,
+      plugins:{
+        legend:{display:false},
+        tooltip:{ callbacks: { label: (ctx) => {
+          const dia = semanaAtual.diasDetalhado[ctx.dataIndex];
+          if (dia.descanso) return 'Descanso (não treinou)';
+          if (dia.carga === 0) return 'Sem registro';
+          return 'Carga: ' + dia.carga + ' u.a.';
+        } } }
+      }
+    }
   });
 
   const coresAcwr = analise.semanas.map(s => corPorClassificacao(classificarAcwr(s.acwr).cor));
