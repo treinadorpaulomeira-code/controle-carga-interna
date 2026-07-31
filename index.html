@@ -941,12 +941,12 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
   const painel = document.getElementById('painelAluno');
   painel.innerHTML = '<p style="color:var(--text-dim)">Carregando dados de ' + escapeHtml(nomeAluno) + '...</p>';
 
-  const [resp, respAnot] = await Promise.all([
-    chamarApi({ action: 'getSessoes', aluno_usuario: usuarioAluno }),
-    chamarApi({ action: 'getAnotacoes', aluno_usuario: usuarioAluno }),
-  ]);
+  // Antes eram duas chamadas separadas ao servidor (sessões + anotações), cada uma pagando o custo
+  // fixo de abrir a planilha no Apps Script. Uma única ação que devolve os dois de uma vez corta
+  // praticamente pela metade o tempo de troca entre alunos.
+  const resp = await chamarApi({ action: 'getPainelAluno', aluno_usuario: usuarioAluno });
   const sessoes = resp.ok ? resp.sessoes : [];
-  const anotacoes = respAnot.ok ? respAnot.anotacoes : [];
+  const anotacoes = resp.ok ? resp.anotacoes : [];
   const analise = analisarCargaInterna(sessoes);
 
   painel.innerHTML = `
