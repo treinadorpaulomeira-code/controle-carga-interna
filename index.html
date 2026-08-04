@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Controle de Carga — Paulo Meira</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <style>
   :root{
     --bg:#1F1F23;
@@ -204,6 +206,7 @@
   <div class="app">
     <nav class="sidebar hidden" id="sidebarTreinador">
       <div class="aluno-item" id="btnRelatorioGeral" style="font-weight:600;color:var(--gold-light);">📊 Relatório geral</div>
+      <div class="aluno-item" id="btnSenhasAlunos" style="font-weight:600;color:var(--gold-light);">🔑 Senhas dos alunos</div>
       <h3>Alunos</h3>
       <div id="listaAlunos"></div>
       <button class="secondary small" id="btnNovoAluno" style="width:100%;margin-top:10px;">+ Novo aluno</button>
@@ -335,7 +338,13 @@ let pseSelecionado = null;
 /* ============================= API ============================= */
 // Tempo máximo de espera por uma chamada à API antes de desistir e avisar o usuário
 // (evita a sensação de "travou" quando o Apps Script demora demais ou não responde).
-const API_TIMEOUT_MS = 20000;
+// Aumentado de 20s para 30s: medimos o tempo real de execução do Apps Script em vários casos de
+// lentidão relatados e, na maioria das vezes, o servidor processa em 1-3s — o tempo "perdido" é
+// sobretudo na entrega da resposta de volta ao navegador (conexão do aluno, infraestrutura do
+// Google), que os 20s originais cortavam antes da hora, gerando erro mesmo quando ia dar certo
+// alguns segundos depois. 30s reduz falso-positivo sem deixar quem realmente travou esperando
+// bem mais.
+const API_TIMEOUT_MS = 30000;
 
 async function chamarApi(payload) {
   if (!API_URL || API_URL.indexOf('COLE_AQUI') !== -1) {
@@ -360,8 +369,10 @@ async function chamarApi(payload) {
     rawText = await resp.text();
   } catch (networkErr) {
     console.error('Falha de rede/timeout ao chamar a API:', networkErr);
+    // Reforço: o servidor tem proteção contra duplicidade para salvar sessão (não cria dado repetido
+    // mesmo em reenvio), então é seguro tentar de novo depois desse erro.
     const msg = networkErr && networkErr.name === 'AbortError'
-      ? 'O servidor demorou demais para responder. Tente novamente.'
+      ? 'O servidor demorou demais para responder. Pode tentar de novo — isso não vai duplicar o que já foi salvo.'
       : 'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.';
     return { ok: false, erro: msg };
   }
@@ -450,6 +461,14 @@ async function iniciarApp() {
 
   if (sessao.role === 'treinador') {
     document.getElementById('sidebarTreinador').classList.remove('hidden');
+    // BUG CORRIGIDO: antes daqui pra baixo, listaAlunos e visaoGeral ficavam totalmente vazios
+    // (sem nenhum texto) enquanto as chamadas abaixo não terminavam. Como o Apps Script às vezes
+    // demora bem mais que o normal para responder (10s, 30s, às vezes mais), a tela ficava em
+    // branco por tempo suficiente para parecer que o site travou/não estava funcionando — mesmo
+    // estando tudo certo por trás, só esperando a resposta do servidor. Agora mostramos um aviso
+    // de carregamento imediatamente, antes de disparar as requisições.
+    document.getElementById('listaAlunos').innerHTML = '<p style="color:var(--text-dim);font-size:13px;">Carregando alunos...</p>';
+    document.getElementById('visaoGeral').innerHTML = '<p style="color:var(--text-dim)">Carregando relatório geral...</p>';
     // As duas chamadas abaixo eram feitas uma depois da outra (esperando a lista de alunos terminar
     // para só então buscar as sessões), o que soma o tempo de duas viagens ao servidor do Apps Script
     // antes de mostrar qualquer coisa. Como uma não depende da outra, disparamos as duas ao mesmo tempo
@@ -460,6 +479,16 @@ async function iniciarApp() {
     ]);
     alunos = respAlunos.ok ? respAlunos.alunos : [];
     renderListaAlunos();
+    if (!respAlunos.ok) {
+      // BUG CORRIGIDO: quando a chamada falhava (timeout, sessão expirada, etc.), a lista de
+      // alunos ficava simplesmente vazia — sem nenhum aviso — o que parecia "nenhum aluno
+      // cadastrado" ou o site travado, em vez de deixar claro que houve um erro e permitir tentar
+      // de novo com um clique.
+      document.getElementById('listaAlunos').innerHTML =
+        '<p style="color:var(--red);font-size:13px;">' + escapeHtml(respAlunos.erro || 'Falha ao carregar alunos.') + '</p>' +
+        '<button type="button" class="secondary small" id="btnTentarNovoAlunos" style="width:100%;margin-top:6px;">Tentar novamente</button>';
+      document.getElementById('btnTentarNovoAlunos').addEventListener('click', () => iniciarApp());
+    }
     await renderVisaoGeralTreinador(respSessoesTodos);
   } else {
     document.getElementById('sidebarTreinador').classList.add('hidden');
@@ -804,6 +833,10 @@ document.getElementById('btnRelatorioGeral').addEventListener('click', async () 
   await renderVisaoGeralTreinador();
 });
 
+document.getElementById('btnSenhasAlunos').addEventListener('click', async () => {
+  await renderSenhasAlunos();
+});
+
 document.getElementById('btnNovoAluno').addEventListener('click', () => {
   document.getElementById('novoAlunoNome').value = '';
   document.getElementById('novoAlunoUsuario').value = '';
@@ -825,6 +858,77 @@ document.getElementById('btnSalvarNovoAluno').addEventListener('click', async ()
   document.getElementById('modalNovoAluno').classList.add('hidden');
   await carregarAlunos();
 });
+
+/* ============================= SENHAS DOS ALUNOS (perfil, só treinador) =============================
+   Mostra login e senha de cada aluno numa tela só do treinador, para ele poder reenviar quando
+   alguém esquecer. Por padrão o site guardava só um hash (criptografado, sem volta) da senha — a
+   pedido do Paulo, agora TAMBÉM guardamos a senha em texto, para poder exibir aqui. Isso é diferente
+   da prática mais segura (normalmente nem o dono do site vê a senha) e tem risco real se a planilha
+   algum dia vazar (várias pessoas reusam a mesma senha em outros lugares) — mas foi uma escolha
+   explícita do treinador para facilitar o dia a dia com os alunos.
+   Alunos cadastrados ANTES dessa mudança não têm senha em texto salva (só o hash antigo, que não dá
+   para reverter) — para esses, aparece "não disponível" com um botão para gerar uma senha nova que
+   já fica visível a partir de agora. */
+async function renderSenhasAlunos() {
+  alunoAtual = null;
+  ['chartCarga','chartCargaDiaria','chartAcwr','chartMonotoniaStrain'].forEach(id => {
+    if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+  });
+  document.getElementById('painelAluno').innerHTML = '';
+  renderListaAlunos();
+  const el = document.getElementById('visaoGeral');
+  el.innerHTML = '<p style="color:var(--text-dim)">Carregando senhas dos alunos...</p>';
+
+  const resp = await chamarApi({ action: 'getPerfilAlunos' });
+  const perfis = resp.ok ? resp.alunos : [];
+
+  el.innerHTML = `
+    <h2 style="color:var(--gold-light);margin-top:0;">Senhas dos alunos</h2>
+    <div class="info-note">Login e senha de cada aluno, para você reenviar caso alguém esqueça. Cuidado onde deixa esta tela aberta — quem tiver acesso a ela vê as senhas de todo mundo.</div>
+    <div class="chart-wrap">
+      <table>
+        <thead><tr><th>Nome</th><th>Usuário (login)</th><th>Senha</th><th>Ações</th></tr></thead>
+        <tbody>${perfis.map(a => `<tr>
+          <td>${escapeHtml(a.nome)}${a.ativo ? '' : ' <span class="tag-inativo">inativo</span>'}</td>
+          <td>${escapeHtml(a.usuario)}</td>
+          <td>${a.senha ? '<code style="font-weight:700;letter-spacing:1px;">' + escapeHtml(a.senha) + '</code>' : '<span style="color:var(--text-dim);">não disponível</span>'}</td>
+          <td class="acoes-cell">
+            ${a.senha ? `<button type="button" class="small secondary btn-copiar-senha" data-senha="${escapeHtml(a.senha)}">Copiar</button>` : ''}
+            <button type="button" class="small ${a.senha ? 'secondary' : ''} btn-gerar-senha" data-usuario="${escapeHtml(a.usuario)}" data-nome="${escapeHtml(a.nome)}">${a.senha ? 'Gerar nova' : 'Gerar senha visível'}</button>
+          </td>
+        </tr>`).join('') || '<tr><td colspan="4" style="color:var(--text-dim)">Nenhum aluno cadastrado ainda.</td></tr>'}</tbody>
+      </table>
+    </div>
+  `;
+
+  document.querySelectorAll('.btn-copiar-senha').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const original = btn.textContent;
+      try {
+        await navigator.clipboard.writeText(btn.dataset.senha);
+        btn.textContent = 'Copiado!';
+      } catch (e) {
+        alert('Senha: ' + btn.dataset.senha);
+      }
+      setTimeout(() => { btn.textContent = original; }, 1500);
+    });
+  });
+
+  document.querySelectorAll('.btn-gerar-senha').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const nome = btn.dataset.nome, usuario = btn.dataset.usuario;
+      if (!confirm('Gerar uma senha nova para ' + nome + '? A senha atual dele(a) para de funcionar assim que você confirmar.')) return;
+      btn.disabled = true;
+      try {
+        const r = await chamarApi({ action: 'resetSenhaAluno', usuario });
+        if (!r.ok) { alert(r.erro || 'Não foi possível gerar a senha.'); return; }
+        await renderSenhasAlunos();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+}
 
 /* ============================= VISÃO GERAL (treinador, sem aluno selecionado) — RELATÓRIO GERAL =============================
    respPreCarregado: opcional — resultado de { action:'getSessoesTodos' } já buscado antecipadamente
@@ -887,7 +991,10 @@ async function renderVisaoGeralTreinador(respPreCarregado) {
   });
 
   el.innerHTML = `
-    <h2 style="color:var(--gold-light);margin-top:0;">Relatório geral</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+      <h2 style="color:var(--gold-light);margin:0;">Relatório geral</h2>
+      <button type="button" class="secondary small" id="btnExportarRelatorioGeral">📄 Exportar PDF</button>
+    </div>
     <div class="info-note">Panorama de todos os alunos: carga da semana atual, carga do mês e classificação de Monotonia, Strain e ACWR. Clique em um aluno na lista à esquerda para ver o detalhe completo.</div>
 
     <div class="chart-wrap">
@@ -914,6 +1021,10 @@ async function renderVisaoGeralTreinador(respPreCarregado) {
   `;
 
   renderGraficoEquipe(diasSemanaEquipeIso, cargaPorDiaEquipe);
+
+  document.getElementById('btnExportarRelatorioGeral').addEventListener('click', (ev) => {
+    exportarRelatorioGeral(linhas, ev.target);
+  });
 }
 
 function renderGraficoEquipe(diasIso, cargaPorDia) {
@@ -936,6 +1047,168 @@ function renderGraficoEquipe(diasIso, cargaPorDia) {
   });
 }
 
+/* ============================= EXPORTAÇÃO DE RELATÓRIO EM PDF =============================
+   Gera o PDF direto no navegador (jsPDF + AutoTable), reaproveitando os mesmos dados e fórmulas
+   já calculados na tela — sem precisar copiar nada para fora do site. Segue a identidade visual
+   Paulo Meira (dourado + texto grafite sobre fundo branco, pensado para impressão/leitura). */
+function montarCabecalhoPdf(doc, titulo, subtitulo) {
+  const corDourada = '#B8860B';
+  const corGrafite = '#2A2A2E';
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  try {
+    const logoEl = document.querySelector('header.topbar img');
+    if (logoEl && logoEl.complete && logoEl.naturalWidth > 0) {
+      doc.addImage(logoEl, 'JPEG', 40, 28, 42, 42);
+    }
+  } catch (e) { /* segue sem a logo se não conseguir desenhá-la (ex: imagem ainda não carregou) */ }
+
+  doc.setTextColor(corGrafite);
+  doc.setFontSize(15);
+  doc.setFont(undefined, 'bold');
+  doc.text('Paulo Meira — Personal Trainer', 92, 44);
+
+  doc.setFontSize(13);
+  doc.setTextColor(corDourada);
+  doc.text(titulo, 92, 62);
+
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor('#666666');
+  doc.text(subtitulo, 92, 77);
+
+  doc.setDrawColor(corDourada);
+  doc.setLineWidth(1.2);
+  doc.line(40, 92, pageWidth - 40, 92);
+
+  return 110; // posição Y (pt) a partir de onde o conteúdo pode começar
+}
+
+function nomeArquivoPdf(base) {
+  const slug = base.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return slug + '_' + hojeISO() + '.pdf';
+}
+
+function exportarRelatorioAluno(nomeAluno, sessoes, analise, botao) {
+  if (botao) { botao.disabled = true; botao.textContent = 'Gerando PDF...'; }
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const geradoEm = new Date().toLocaleString('pt-BR');
+    let y = montarCabecalhoPdf(doc, 'Relatório de Carga Interna — ' + nomeAluno, 'Gerado em ' + geradoEm);
+
+    if (analise.vazio) {
+      doc.setTextColor('#333333');
+      doc.setFontSize(11);
+      doc.setFont(undefined, 'normal');
+      doc.text('Nenhuma sessão registrada ainda para este aluno.', 40, y + 10);
+      doc.save(nomeArquivoPdf('relatorio_' + nomeAluno));
+      return;
+    }
+
+    const semanasTabela = analise.semanas.slice().reverse().map(s => [
+      formatarDataBR(s.inicio),
+      s.cargaSemanal,
+      s.monotonia !== null ? s.monotonia : '—',
+      s.strain !== null ? s.strain : '—',
+      s.acwr !== null ? s.acwr : '—',
+    ]);
+
+    doc.autoTable({
+      startY: y,
+      head: [['Semana (início)', 'Carga (u.a.)', 'Monotonia', 'Strain', 'ACWR']],
+      body: semanasTabela,
+      theme: 'striped',
+      headStyles: { fillColor: [212, 169, 58], textColor: [30, 30, 30] },
+      styles: { fontSize: 9 },
+      margin: { left: 40, right: 40 },
+    });
+    y = doc.lastAutoTable.finalY + 20;
+
+    // Reaproveita o gráfico já desenhado na tela (Chart.js) como imagem, em vez de redesenhar tudo.
+    const chart = charts.chartCarga;
+    if (chart) {
+      try {
+        const img = chart.toBase64Image();
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const imgW = pageWidth - 80;
+        const imgH = imgW * 0.4;
+        if (y + imgH > doc.internal.pageSize.getHeight() - 40) { doc.addPage(); y = 40; }
+        doc.setFontSize(11);
+        doc.setTextColor('#2A2A2E');
+        doc.text('Carga interna semanal (u.a.)', 40, y);
+        doc.addImage(img, 'PNG', 40, y + 8, imgW, imgH);
+        y += imgH + 30;
+      } catch (e) { /* se o gráfico não puder ser capturado como imagem, segue sem ele */ }
+    }
+
+    const sessoesTabela = sessoes.slice().reverse().map(s => [
+      formatarDataBR(s.data),
+      s.tipo === 'descanso' ? 'Descanso' : 'Treino',
+      s.tipo === 'descanso' ? '—' : s.pse,
+      s.tipo === 'descanso' ? '—' : s.tempo_min,
+      s.tipo === 'descanso' ? '—' : s.carga_ua,
+      s.observacoes || '',
+    ]);
+
+    if (y > doc.internal.pageSize.getHeight() - 100) { doc.addPage(); y = 40; }
+
+    doc.autoTable({
+      startY: y,
+      head: [['Data', 'Tipo', 'PSE', 'Tempo (min)', 'Carga (u.a.)', 'Observações']],
+      body: sessoesTabela,
+      theme: 'striped',
+      headStyles: { fillColor: [212, 169, 58], textColor: [30, 30, 30] },
+      styles: { fontSize: 8 },
+      margin: { left: 40, right: 40 },
+    });
+
+    doc.save(nomeArquivoPdf('relatorio_' + nomeAluno));
+  } catch (e) {
+    console.error('Falha ao gerar PDF do aluno:', e);
+    alert('Não foi possível gerar o PDF. Tente novamente em alguns segundos.');
+  } finally {
+    if (botao) { botao.disabled = false; botao.textContent = '📄 Exportar PDF'; }
+  }
+}
+
+function exportarRelatorioGeral(linhas, botao) {
+  if (botao) { botao.disabled = true; botao.textContent = 'Gerando PDF...'; }
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const geradoEm = new Date().toLocaleString('pt-BR');
+    const y = montarCabecalhoPdf(doc, 'Relatório geral — Equipe', 'Gerado em ' + geradoEm);
+
+    const corpo = linhas.map(l => [
+      l.aluno.nome + (l.aluno.ativo ? '' : ' (inativo)'),
+      l.ultima ? l.ultima.cargaSemanal : '—',
+      l.cargaMes || '—',
+      (l.ultima && l.ultima.monotonia !== null ? l.ultima.monotonia : '—') + '  ' + l.cMono.texto,
+      (l.ultima && l.ultima.strain !== null ? l.ultima.strain : '—') + '  ' + l.cStrain.texto,
+      (l.ultima && l.ultima.acwr !== null ? l.ultima.acwr : '—') + '  ' + l.cAcwr.texto,
+    ]);
+
+    doc.autoTable({
+      startY: y,
+      head: [['Aluno', 'Carga semana (u.a.)', 'Carga mês (u.a.)', 'Monotonia', 'Strain', 'ACWR']],
+      body: corpo,
+      theme: 'striped',
+      headStyles: { fillColor: [212, 169, 58], textColor: [30, 30, 30] },
+      styles: { fontSize: 8 },
+      margin: { left: 40, right: 40 },
+    });
+
+    doc.save(nomeArquivoPdf('relatorio_geral_equipe'));
+  } catch (e) {
+    console.error('Falha ao gerar PDF geral:', e);
+    alert('Não foi possível gerar o PDF. Tente novamente em alguns segundos.');
+  } finally {
+    if (botao) { botao.disabled = false; botao.textContent = '📄 Exportar PDF'; }
+  }
+}
+
 /* ============================= PAINEL DO ALUNO (sessões + gráficos) ============================= */
 async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
   const painel = document.getElementById('painelAluno');
@@ -950,7 +1223,10 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
   const analise = analisarCargaInterna(sessoes);
 
   painel.innerHTML = `
-    <h2 style="color:var(--gold-light);margin-top:0;">${escapeHtml(nomeAluno)}</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+      <h2 style="color:var(--gold-light);margin:0;">${escapeHtml(nomeAluno)}</h2>
+      ${souTreinador ? '<button type="button" class="secondary small" id="btnExportarRelatorioAluno">📄 Exportar PDF</button>' : ''}
+    </div>
 
     <form class="session-form" id="formSessao">
       <div class="field"><label>Data</label><input type="date" id="fData" value="${hojeISO()}"></div>
@@ -1026,6 +1302,15 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
 
   renderCardsMetricas(analise);
   renderGraficos(analise);
+
+  // Exportar PDF é exclusivo do treinador — o próprio aluno não vê esse botão (removido do HTML acima
+  // quando souTreinador é falso), então só liga o listener quando ele realmente existe na tela.
+  const btnExportarAluno = document.getElementById('btnExportarRelatorioAluno');
+  if (btnExportarAluno) {
+    btnExportarAluno.addEventListener('click', (ev) => {
+      exportarRelatorioAluno(nomeAluno, sessoes, analise, ev.target);
+    });
+  }
 
   pseSelecionado = null;
   document.getElementById('btnAbrirBorg').addEventListener('click', () => {
@@ -1107,7 +1392,9 @@ async function salvarSessao(usuarioAluno, souTreinador) {
     if (!resp.ok) { msgEl.innerHTML = '<div class="msg-erro">' + escapeHtml(resp.erro) + '</div>'; return; }
     msgEl.innerHTML = descanso
       ? '<div class="msg-ok">Dia de descanso registrado.</div>'
-      : '<div class="msg-ok">Sessão salva! Carga: ' + resp.carga_ua + ' u.a.</div>';
+      : (resp.duplicado
+          ? '<div class="msg-ok">Essa sessão já tinha sido salva (evitamos duplicar). Carga: ' + resp.carga_ua + ' u.a.</div>'
+          : '<div class="msg-ok">Sessão salva! Carga: ' + resp.carga_ua + ' u.a.</div>');
     const nomeAtual = souTreinador ? (alunos.find(a => a.usuario === usuarioAluno) || {}).nome : sessao.nome;
     await renderPainelAluno(usuarioAluno, nomeAtual || usuarioAluno, souTreinador);
   } finally {
