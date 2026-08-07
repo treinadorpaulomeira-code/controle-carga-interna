@@ -335,6 +335,13 @@ let alunoAtual = null; // usuario do aluno selecionado (visão treinador) ou o p
 let charts = {};
 let pseSelecionado = null;
 
+// Ordena uma lista de alunos pelo nome (ordem alfabética, ignorando maiúsculas/minúsculas e
+// acentos) — usado sempre que os alunos são carregados, para a lista lateral, o painel de
+// senhas e afins aparecerem sempre em ordem alfabética em vez da ordem em que foram cadastrados.
+function ordenarPorNome(lista) {
+  return lista.slice().sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { sensitivity: 'base' }));
+}
+
 /* ============================= API ============================= */
 // Tempo máximo de espera por uma chamada à API antes de desistir e avisar o usuário
 // (evita a sensação de "travou" quando o Apps Script demora demais ou não responde).
@@ -477,7 +484,7 @@ async function iniciarApp() {
       chamarApi({ action: 'listAlunos' }),
       chamarApi({ action: 'getSessoesTodos' }),
     ]);
-    alunos = respAlunos.ok ? respAlunos.alunos : [];
+    alunos = respAlunos.ok ? ordenarPorNome(respAlunos.alunos) : [];
     renderListaAlunos();
     if (!respAlunos.ok) {
       // BUG CORRIGIDO: quando a chamada falhava (timeout, sessão expirada, etc.), a lista de
@@ -794,7 +801,7 @@ document.getElementById('btnConfirmarExclusaoAnotacao').addEventListener('click'
 /* ============================= ALUNOS (visão treinador) ============================= */
 async function carregarAlunos() {
   const data = await chamarApi({ action: 'listAlunos' });
-  alunos = data.ok ? data.alunos : [];
+  alunos = data.ok ? ordenarPorNome(data.alunos) : [];
   renderListaAlunos();
 }
 
@@ -880,7 +887,7 @@ async function renderSenhasAlunos() {
   el.innerHTML = '<p style="color:var(--text-dim)">Carregando senhas dos alunos...</p>';
 
   const resp = await chamarApi({ action: 'getPerfilAlunos' });
-  const perfis = resp.ok ? resp.alunos : [];
+  const perfis = resp.ok ? ordenarPorNome(resp.alunos) : [];
 
   el.innerHTML = `
     <h2 style="color:var(--gold-light);margin-top:0;">Senhas dos alunos</h2>
