@@ -496,7 +496,7 @@ async function iniciarApp() {
         '<button type="button" class="secondary small" id="btnTentarNovoAlunos" style="width:100%;margin-top:6px;">Tentar novamente</button>';
       document.getElementById('btnTentarNovoAlunos').addEventListener('click', () => iniciarApp());
     }
-    await renderVisaoGeralTreinador(respSessoesTodos);
+    await renderVisaoGeralTreinador(respSessoesTodos, !respAlunos.ok);
   } else {
     document.getElementById('sidebarTreinador').classList.add('hidden');
     alunoAtual = sessao.usuario;
@@ -942,9 +942,24 @@ async function renderSenhasAlunos() {
    (usado na carga inicial do painel do treinador, em paralelo com a lista de alunos, para não fazer
    duas viagens ao servidor uma atrás da outra). Quando chamada depois (ex: clique em "Relatório geral"),
    busca os dados normalmente. */
-async function renderVisaoGeralTreinador(respPreCarregado) {
+async function renderVisaoGeralTreinador(respPreCarregado, alunosFalharam) {
   document.getElementById('painelAluno').innerHTML = '';
   const el = document.getElementById('visaoGeral');
+
+  // BUG CORRIGIDO: quando a busca de alunos falhava (timeout, sem internet, etc.), "alunos" ficava
+  // vazio e esta função caía direto no caso "Nenhum aluno cadastrado ainda" — uma mensagem que parece
+  // exatamente com "os dados sumiram", mesmo com tudo intacto no servidor. Agora distinguimos "não
+  // tem aluno cadastrado de verdade" de "não deu pra carregar agora", e no segundo caso mostramos um
+  // erro claro com botão de tentar de novo, em vez de sugerir que a base está vazia.
+  if (alunosFalharam) {
+    el.innerHTML =
+      '<p style="color:var(--red);">Não foi possível carregar os alunos agora (falha de conexão ou demora do servidor). ' +
+      'Isso não apaga nada — os dados continuam salvos, foi só a busca que falhou.</p>' +
+      '<button type="button" class="secondary small" id="btnTentarNovoRelatorio">Tentar novamente</button>';
+    document.getElementById('btnTentarNovoRelatorio').addEventListener('click', () => iniciarApp());
+    return;
+  }
+
   if (alunos.length === 0) {
     el.innerHTML = '<div class="empty-state">Nenhum aluno cadastrado ainda. Clique em "+ Novo aluno" para começar.</div>';
     return;
@@ -953,6 +968,10 @@ async function renderVisaoGeralTreinador(respPreCarregado) {
   el.innerHTML = '<p style="color:var(--text-dim)">Carregando relatório geral...</p>';
 
   const resp = respPreCarregado || await chamarApi({ action: 'getSessoesTodos' });
+  // BUG CORRIGIDO: quando essa busca falhava, "todasSessoes" virava [] silenciosamente e o relatório
+  // era exibido como se todo mundo tivesse carga zero / "N/A" — de novo, algo que parece "dados
+  // sumiram" mas era só a busca de sessões que tinha falhado. Agora avisamos isso no topo do relatório.
+  const sessoesFalharam = !resp.ok;
   const todasSessoes = resp.ok ? resp.sessoes : [];
 
   const porAluno = {};
@@ -1002,6 +1021,7 @@ async function renderVisaoGeralTreinador(respPreCarregado) {
       <h2 style="color:var(--gold-light);margin:0;">Relatório geral</h2>
       <button type="button" class="secondary small" id="btnExportarRelatorioGeral">📄 Exportar PDF</button>
     </div>
+    ${sessoesFalharam ? `<div class="info-note" style="border-color:var(--red);color:var(--red);">Não foi possível carregar as sessões agora (falha de conexão ou demora do servidor) — os números abaixo podem estar incompletos ou zerados. Os dados continuam salvos. <button type="button" class="secondary small" id="btnTentarNovoSessoesTodos" style="margin-left:8px;">Tentar novamente</button></div>` : ''}
     <div class="info-note">Panorama de todos os alunos: carga da semana atual, carga do mês e classificação de Monotonia, Strain e ACWR. Clique em um aluno na lista à esquerda para ver o detalhe completo.</div>
 
     <div class="chart-wrap">
@@ -1032,6 +1052,10 @@ async function renderVisaoGeralTreinador(respPreCarregado) {
   document.getElementById('btnExportarRelatorioGeral').addEventListener('click', (ev) => {
     exportarRelatorioGeral(linhas, ev.target);
   });
+  const btnTentarNovoSessoes = document.getElementById('btnTentarNovoSessoesTodos');
+  if (btnTentarNovoSessoes) {
+    btnTentarNovoSessoes.addEventListener('click', () => renderVisaoGeralTreinador());
+  }
 }
 
 function renderGraficoEquipe(diasIso, cargaPorDia) {
