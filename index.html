@@ -92,6 +92,8 @@
   .aluno-item:hover{background:var(--bg-row);}
   .aluno-item.active{background:var(--gold);color:#1F1F23;font-weight:600;}
   .aluno-item .tag-inativo{font-size:10px;color:var(--red);border:1px solid var(--red);padding:1px 5px;border-radius:4px;}
+  .aluno-item .tag-carga{font-size:10px;color:var(--text-dim);background:var(--bg-row);padding:1px 6px;border-radius:4px;flex-shrink:0;margin-left:6px;}
+  .aluno-item.active .tag-carga{color:#1F1F23;background:rgba(31,31,35,.15);}
   main.content{flex:1;padding:22px;overflow-y:auto;}
 
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-bottom:22px;}
@@ -334,12 +336,45 @@ let alunos = [];
 let alunoAtual = null; // usuario do aluno selecionado (visão treinador) ou o próprio (visão aluno)
 let charts = {};
 let pseSelecionado = null;
+// Cache da última lista de "todas as sessões" buscada (getSessoesTodos), usada para ordenar a
+// lista lateral pelos alunos mais ativos na semana. Atualizada sempre que essa busca é feita (ao
+// abrir o painel do treinador e ao entrar no Relatório geral) — não gera nenhuma chamada extra à
+// API, só reaproveita dados que já seriam buscados de qualquer forma.
+let sessoesTodosCache = [];
 
 // Ordena uma lista de alunos pelo nome (ordem alfabética, ignorando maiúsculas/minúsculas e
-// acentos) — usado sempre que os alunos são carregados, para a lista lateral, o painel de
-// senhas e afins aparecerem sempre em ordem alfabética em vez da ordem em que foram cadastrados.
+// acentos) — usado na tela "Senhas dos alunos", onde faz mais sentido procurar por nome do que
+// por atividade.
 function ordenarPorNome(lista) {
   return lista.slice().sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { sensitivity: 'base' }));
+}
+
+// Soma a carga (u.a.) de um aluno na semana atual (segunda a domingo), a partir da lista de todas
+// as sessões já carregada — mesmo critério de "semana" usado nos gráficos de carga semanal.
+function cargaSemanalDoAluno(usuario, todasSessoes) {
+  const inicioSemana = segundaDaSemana(new Date());
+  const fimSemana = new Date(inicioSemana);
+  fimSemana.setDate(fimSemana.getDate() + 7); // exclusivo
+  let total = 0;
+  for (const s of (todasSessoes || [])) {
+    if (s.aluno_usuario !== usuario || s.tipo === 'descanso') continue;
+    const d = new Date(s.data + 'T00:00:00');
+    if (d >= inicioSemana && d < fimSemana) total += Number(s.carga_ua) || 0;
+  }
+  return round2(total);
+}
+
+// Ordena os alunos pelos mais ativos primeiro (maior carga na semana atual no topo), para o
+// treinador bater o olho e ver rápido quem está treinando mais — pedido do Paulo para facilitar o
+// controle no lugar da ordem alfabética. Quem empata (inclusive quem não treinou nada essa semana,
+// carga 0) fica em ordem alfabética entre si; sem nenhuma atividade sempre fica abaixo de quem tem.
+function ordenarPorAtividade(lista, todasSessoes) {
+  return lista
+    .map(a => ({ aluno: a, carga: cargaSemanalDoAluno(a.usuario, todasSessoes) }))
+    .sort((x, y) => {
+      if (y.carga !== x.carga) return y.carga - x.carga;
+      return String(x.aluno.nome || '').localeCompare(String(y.aluno.nome || ''), 'pt-BR', { sensitivity: 'base' });
+    });
 }
 
 /* ============================= API ============================= */
@@ -485,6 +520,7 @@ async function iniciarApp() {
       chamarApi({ action: 'getSessoesTodos' }),
     ]);
     alunos = respAlunos.ok ? ordenarPorNome(respAlunos.alunos) : [];
+    sessoesTodosCache = respSessoesTodos.ok ? respSessoesTodos.sessoes : [];
     renderListaAlunos();
     if (!respAlunos.ok) {
       // BUG CORRIGIDO: quando a chamada falhava (timeout, sessão expirada, etc.), a lista de
@@ -808,10 +844,12 @@ async function carregarAlunos() {
 function renderListaAlunos() {
   const el = document.getElementById('listaAlunos');
   el.innerHTML = '';
-  alunos.forEach(a => {
+  const ordenados = ordenarPorAtividade(alunos, sessoesTodosCache);
+  ordenados.forEach(({ aluno: a, carga }) => {
     const div = document.createElement('div');
     div.className = 'aluno-item' + (alunoAtual === a.usuario ? ' active' : '');
-    div.innerHTML = '<span>' + escapeHtml(a.nome) + '</span>' + (a.ativo ? '' : '<span class="tag-inativo">inativo</span>');
+    const tagCarga = carga > 0 ? '<span class="tag-carga">' + carga + ' u.a.</span>' : '';
+    div.innerHTML = '<span>' + escapeHtml(a.nome) + '</span><span style="display:flex;align-items:center;">' + tagCarga + (a.ativo ? '' : '<span class="tag-inativo">inativo</span>') + '</span>';
     div.addEventListener('click', () => selecionarAluno(a));
     el.appendChild(div);
   });
@@ -973,6 +1011,10 @@ async function renderVisaoGeralTreinador(respPreCarregado, alunosFalharam) {
   // sumiram" mas era só a busca de sessões que tinha falhado. Agora avisamos isso no topo do relatório.
   const sessoesFalharam = !resp.ok;
   const todasSessoes = resp.ok ? resp.sessoes : [];
+  // Atualiza o cache usado pela lista lateral (mais ativos no topo) com os dados mais recentes e
+  // reordena a lista — sem isso, ela ficaria presa na ordem calculada no carregamento inicial da
+  // página, mesmo depois de novas sessões serem lançadas.
+  if (resp.ok) { sessoesTodosCache = todasSessoes; renderListaAlunos(); }
 
   const porAluno = {};
   todasSessoes.forEach(s => {
@@ -1426,6 +1468,12 @@ async function salvarSessao(usuarioAluno, souTreinador) {
       : (resp.duplicado
           ? '<div class="msg-ok">Essa sessão já tinha sido salva (evitamos duplicar). Carga: ' + resp.carga_ua + ' u.a.</div>'
           : '<div class="msg-ok">Sessão salva! Carga: ' + resp.carga_ua + ' u.a.</div>');
+    // Atualiza o cache da lista lateral (mais ativos no topo) com a sessão recém-salva, sem precisar
+    // buscar tudo de novo no servidor — assim a ordem já reflete a sessão atual imediatamente.
+    if (!resp.duplicado) {
+      sessoesTodosCache.push({ aluno_usuario: usuarioAluno, data, tipo: descanso ? 'descanso' : 'treino', carga_ua: resp.carga_ua });
+      if (souTreinador) renderListaAlunos();
+    }
     const nomeAtual = souTreinador ? (alunos.find(a => a.usuario === usuarioAluno) || {}).nome : sessao.nome;
     await renderPainelAluno(usuarioAluno, nomeAtual || usuarioAluno, souTreinador);
   } finally {
