@@ -243,6 +243,7 @@
     <div class="field"><label>Data</label><input type="date" id="eData"></div>
     <div class="field checkbox-field"><label class="checkbox-label"><input type="checkbox" id="eDescansoDia"> Dia de descanso (não treinou)</label></div>
     <div id="camposTreinoEdicao" style="display:contents">
+      <div class="field full"><label>Atividade*</label><input id="eAtividade" placeholder="ex: Musculação, Corrida, Funcional..."></div>
       <div class="field">
         <label>PSE (Escala de Borg 0–10)</label>
         <input type="hidden" id="ePse">
@@ -252,6 +253,7 @@
       </div>
       <div class="field"><label>Horas (opcional)</label><input type="number" id="eTempoHoras" min="0" step="1" placeholder="ex: 1"></div>
       <div class="field"><label>Minutos*</label><input type="number" id="eTempoMinutos" min="0" max="59" step="1" placeholder="ex: 30"></div>
+      <div class="field"><label>Calorias (kcal) — opcional</label><input type="number" id="eKcal" min="0" step="1" placeholder="se tiver relógio"></div>
     </div>
     <div class="field"><label>Observações (opcional)</label><input id="eObs" placeholder="ex: treino de força, bloco de potência..."></div>
     <div id="editarSessaoMsg"></div>
@@ -639,6 +641,8 @@ function abrirEdicaoSessao(id) {
 
   document.getElementById('eData').value = s.data;
   document.getElementById('eObs').value = s.observacoes || '';
+  document.getElementById('eAtividade').value = isDescanso ? '' : (s.atividade || '');
+  document.getElementById('eKcal').value = isDescanso ? '' : (s.kcal || '');
   document.getElementById('eDescansoDia').checked = isDescanso;
   document.getElementById('camposTreinoEdicao').style.display = isDescanso ? 'none' : 'contents';
   document.getElementById('editarSessaoMsg').innerHTML = '';
@@ -681,16 +685,19 @@ document.getElementById('btnSalvarEdicao').addEventListener('click', async () =>
   if (descanso) {
     payload = { action: 'editarSessao', id: sessaoEditandoId, data, tipo: 'descanso', observacoes: obs };
   } else {
+    const atividade = document.getElementById('eAtividade').value.trim();
     const pse = document.getElementById('ePse').value;
     const horasStr = document.getElementById('eTempoHoras').value;
     const minutosStr = document.getElementById('eTempoMinutos').value;
+    const kcalStr = document.getElementById('eKcal').value;
+    if (!atividade) { msgEl.innerHTML = '<div class="msg-erro">Informe a atividade realizada.</div>'; return; }
     if (pse === '' || pse === null) { msgEl.innerHTML = '<div class="msg-erro">Selecione o PSE na escala de Borg.</div>'; return; }
     if (minutosStr === '' || minutosStr === null) { msgEl.innerHTML = '<div class="msg-erro">Informe os minutos (as horas são opcionais).</div>'; return; }
     const horas = Number(horasStr) || 0;
     const minutos = Number(minutosStr) || 0;
     const tempoTotalMin = horas * 60 + minutos;
     if (tempoTotalMin <= 0) { msgEl.innerHTML = '<div class="msg-erro">O tempo total da sessão deve ser maior que 0.</div>'; return; }
-    payload = { action: 'editarSessao', id: sessaoEditandoId, data, pse, tempo_min: tempoTotalMin, tipo: 'treino', observacoes: obs };
+    payload = { action: 'editarSessao', id: sessaoEditandoId, data, atividade, pse, tempo_min: tempoTotalMin, kcal: kcalStr, tipo: 'treino', observacoes: obs };
   }
 
   btn.disabled = true;
@@ -1218,7 +1225,7 @@ function exportarRelatorioAluno(nomeAluno, sessoes, analise, botao) {
 
     const sessoesTabela = sessoes.slice().reverse().map(s => [
       formatarDataBR(s.data),
-      s.tipo === 'descanso' ? 'Descanso' : 'Treino',
+      s.tipo === 'descanso' ? 'Descanso' : (s.atividade || '—'),
       s.tipo === 'descanso' ? '—' : s.pse,
       s.tipo === 'descanso' ? '—' : s.tempo_min,
       s.tipo === 'descanso' ? '—' : s.carga_ua,
@@ -1229,7 +1236,7 @@ function exportarRelatorioAluno(nomeAluno, sessoes, analise, botao) {
 
     doc.autoTable({
       startY: y,
-      head: [['Data', 'Tipo', 'PSE', 'Tempo (min)', 'Carga (u.a.)', 'Observações']],
+      head: [['Data', 'Atividade', 'PSE', 'Tempo (min)', 'Carga (u.a.)', 'Observações']],
       body: sessoesTabela,
       theme: 'striped',
       headStyles: { fillColor: [212, 169, 58], textColor: [30, 30, 30] },
@@ -1305,6 +1312,7 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
       <div class="field"><label>Data</label><input type="date" id="fData" value="${hojeISO()}"></div>
       <div class="field full checkbox-field"><label class="checkbox-label"><input type="checkbox" id="fDescanso"> Dia de descanso (não treinou)</label></div>
       <div id="camposTreino" style="display:contents">
+        <div class="field full"><label>Atividade*</label><input id="fAtividade" placeholder="ex: Musculação, Corrida, Funcional..."></div>
         <div class="field">
           <label>PSE (Escala de Borg 0–10)</label>
           <input type="hidden" id="fPse">
@@ -1314,6 +1322,7 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
         </div>
         <div class="field"><label>Horas (opcional)</label><input type="number" id="fTempoHoras" min="0" step="1" placeholder="ex: 1"></div>
         <div class="field"><label>Minutos*</label><input type="number" id="fTempoMinutos" min="0" max="59" step="1" placeholder="ex: 30"></div>
+        <div class="field"><label>Calorias (kcal) — opcional</label><input type="number" id="fKcal" min="0" step="1" placeholder="se tiver relógio"></div>
       </div>
       <div class="field full"><label>Observações (opcional)</label><input id="fObs" placeholder="ex: treino de força, bloco de potência..."></div>
       <div class="field"><button id="btnSalvarSessao" style="width:100%">Salvar sessão</button></div>
@@ -1330,14 +1339,14 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
     <div class="chart-wrap">
       <h3>Últimas sessões</h3>
       <table>
-        <thead><tr><th>Data</th><th>PSE</th><th>Tempo (min)</th><th>Carga (u.a.)</th><th>Obs.</th><th>Ações</th></tr></thead>
+        <thead><tr><th>Data</th><th>Atividade</th><th>PSE</th><th>Tempo (min)</th><th>Kcal</th><th>Carga (u.a.)</th><th>Obs.</th><th>Ações</th></tr></thead>
         <tbody>${sessoes.slice().reverse().slice(0,15).map(s => `<tr>
-          <td>${formatarDataBR(s.data)}</td><td>${s.tipo === 'descanso' ? '—' : s.pse}</td><td>${s.tipo === 'descanso' ? '—' : s.tempo_min}</td><td>${s.tipo === 'descanso' ? '<span class="badge neutro">Descanso</span>' : s.carga_ua}</td><td>${escapeHtml(s.observacoes||'')}</td>
+          <td>${formatarDataBR(s.data)}</td><td>${s.tipo === 'descanso' ? '—' : escapeHtml(s.atividade||'')}</td><td>${s.tipo === 'descanso' ? '—' : s.pse}</td><td>${s.tipo === 'descanso' ? '—' : s.tempo_min}</td><td>${s.tipo === 'descanso' || !s.kcal ? '—' : s.kcal}</td><td>${s.tipo === 'descanso' ? '<span class="badge neutro">Descanso</span>' : s.carga_ua}</td><td>${escapeHtml(s.observacoes||'')}</td>
           <td class="acoes-cell">
             <button type="button" class="small secondary btn-editar-sessao" data-id="${s.id}">Editar</button>
             <button type="button" class="small btn-excluir-sessao" data-id="${s.id}">Excluir</button>
           </td>
-        </tr>`).join('') || '<tr><td colspan="6" style="color:var(--text-dim)">Nenhuma sessão registrada ainda.</td></tr>'}</tbody>
+        </tr>`).join('') || '<tr><td colspan="8" style="color:var(--text-dim)">Nenhuma sessão registrada ainda.</td></tr>'}</tbody>
       </table>
     </div>
 
@@ -1437,9 +1446,18 @@ async function salvarSessao(usuarioAluno, souTreinador) {
   if (descanso) {
     payload = { action: 'addSessao', data, tipo: 'descanso', observacoes: obs };
   } else {
+    const atividade = document.getElementById('fAtividade').value.trim();
     const pse = document.getElementById('fPse').value;
     const horasStr = document.getElementById('fTempoHoras').value;
     const minutosStr = document.getElementById('fTempoMinutos').value;
+    const kcalStr = document.getElementById('fKcal').value;
+    // Atividade (o que foi feito: musculação, corrida, etc.) agora é obrigatória — pedido do Paulo
+    // para nunca mais ficar sem saber qual foi o treino. Kcal continua opcional, só preenchido por
+    // quem usa relógio/monitor cardíaco.
+    if (!atividade) {
+      msgEl.innerHTML = '<div class="msg-erro">Informe a atividade realizada.</div>';
+      return;
+    }
     if (pse === '' || pse === null) {
       msgEl.innerHTML = '<div class="msg-erro">Selecione o PSE na escala de Borg.</div>';
       return;
@@ -1455,7 +1473,7 @@ async function salvarSessao(usuarioAluno, souTreinador) {
       msgEl.innerHTML = '<div class="msg-erro">O tempo total da sessão deve ser maior que 0.</div>';
       return;
     }
-    payload = { action: 'addSessao', data, pse, tempo_min: tempoTotalMin, tipo: 'treino', observacoes: obs };
+    payload = { action: 'addSessao', data, atividade, pse, tempo_min: tempoTotalMin, kcal: kcalStr, tipo: 'treino', observacoes: obs };
   }
 
   btn.disabled = true;
