@@ -175,14 +175,27 @@
   .likert-row{display:flex;gap:8px;}
   .likert-btn{
     flex:1;background:#17171A;border:1px solid var(--line);color:var(--text-dim);
-    padding:10px 0;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;
+    padding:8px 0 6px;border-radius:8px;font-weight:700;font-size:20px;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;gap:2px;line-height:1;
   }
+  .likert-btn .likert-emoji{font-size:20px;line-height:1;}
+  .likert-btn .likert-num{font-size:10px;font-weight:600;color:var(--text-dim);}
   .likert-btn.selecionado{background:var(--gold);color:#1F1F23;border-color:var(--gold);}
+  /* Escala verde→vermelho padronizada: 1/ruim = pior, 5/ótima = melhor — pedido do Paulo para dar
+     pra "ver como está cada resposta" num piscar de olhos, sem precisar ler os números. Mesmas cores
+     são usadas nos badges de resumo, na lista de 6-20 e no relatório geral do treinador. */
+  .likert-btn[data-v="1"].selecionado,.likert-btn[data-v="ruim"].selecionado{background:#D64545;border-color:#D64545;color:#fff;}
+  .likert-btn[data-v="2"].selecionado{background:#E08A3C;border-color:#E08A3C;color:#fff;}
+  .likert-btn[data-v="3"].selecionado,.likert-btn[data-v="boa"].selecionado{background:#D4A93A;border-color:#D4A93A;color:#1F1F23;}
+  .likert-btn[data-v="4"].selecionado{background:#8FBF4A;border-color:#8FBF4A;color:#1F1F23;}
+  .likert-btn[data-v="5"].selecionado,.likert-btn[data-v="otima"].selecionado{background:#4CAF50;border-color:#4CAF50;color:#fff;}
+  .likert-btn.selecionado .likert-num{color:inherit;opacity:.85;}
   .likert-legendas{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-top:6px;gap:10px;}
   .likert-legendas span:last-child{text-align:right;}
   .tqr-resumo-hoje{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
   .tqr-resumo-hoje .badge-tqr{background:var(--bg-row);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text-dim);}
   .tqr-resumo-hoje .badge-tqr b{color:var(--gold-light);}
+  .tqr-escala-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap;}
 
   @media (max-width:760px){
     .app{flex-direction:column;}
@@ -351,11 +364,11 @@
     <div class="tqr-bloco">
       <label>Fadiga — Como está seu nível de energia hoje?</label>
       <div class="likert-row" data-campo="fadiga">
-        <button type="button" class="likert-btn" data-v="1">1</button>
-        <button type="button" class="likert-btn" data-v="2">2</button>
-        <button type="button" class="likert-btn" data-v="3">3</button>
-        <button type="button" class="likert-btn" data-v="4">4</button>
-        <button type="button" class="likert-btn" data-v="5">5</button>
+        <button type="button" class="likert-btn" data-v="1"><span class="likert-emoji">😞</span><span class="likert-num">1</span></button>
+        <button type="button" class="likert-btn" data-v="2"><span class="likert-emoji">🙁</span><span class="likert-num">2</span></button>
+        <button type="button" class="likert-btn" data-v="3"><span class="likert-emoji">😐</span><span class="likert-num">3</span></button>
+        <button type="button" class="likert-btn" data-v="4"><span class="likert-emoji">🙂</span><span class="likert-num">4</span></button>
+        <button type="button" class="likert-btn" data-v="5"><span class="likert-emoji">😄</span><span class="likert-num">5</span></button>
       </div>
       <div class="likert-legendas"><span>Muito fadigado / Sem energia</span><span>Com muita energia / Disposto</span></div>
     </div>
@@ -363,11 +376,11 @@
     <div class="tqr-bloco">
       <label>Qualidade do Sono — Como foi sua noite de sono?</label>
       <div class="likert-row" data-campo="sono">
-        <button type="button" class="likert-btn" data-v="1">1</button>
-        <button type="button" class="likert-btn" data-v="2">2</button>
-        <button type="button" class="likert-btn" data-v="3">3</button>
-        <button type="button" class="likert-btn" data-v="4">4</button>
-        <button type="button" class="likert-btn" data-v="5">5</button>
+        <button type="button" class="likert-btn" data-v="1"><span class="likert-emoji">😞</span><span class="likert-num">1</span></button>
+        <button type="button" class="likert-btn" data-v="2"><span class="likert-emoji">🙁</span><span class="likert-num">2</span></button>
+        <button type="button" class="likert-btn" data-v="3"><span class="likert-emoji">😐</span><span class="likert-num">3</span></button>
+        <button type="button" class="likert-btn" data-v="4"><span class="likert-emoji">🙂</span><span class="likert-num">4</span></button>
+        <button type="button" class="likert-btn" data-v="5"><span class="likert-emoji">😄</span><span class="likert-num">5</span></button>
       </div>
       <div class="likert-legendas"><span>Insônia / Dormi muito mal</span><span>Sono excelente / Reparador</span></div>
     </div>
@@ -375,11 +388,11 @@
     <div class="tqr-bloco">
       <label>Dor Muscular — Você sente dores musculares tardias decorrentes dos treinos?</label>
       <div class="likert-row" data-campo="dor_muscular">
-        <button type="button" class="likert-btn" data-v="1">1</button>
-        <button type="button" class="likert-btn" data-v="2">2</button>
-        <button type="button" class="likert-btn" data-v="3">3</button>
-        <button type="button" class="likert-btn" data-v="4">4</button>
-        <button type="button" class="likert-btn" data-v="5">5</button>
+        <button type="button" class="likert-btn" data-v="1"><span class="likert-emoji">😞</span><span class="likert-num">1</span></button>
+        <button type="button" class="likert-btn" data-v="2"><span class="likert-emoji">🙁</span><span class="likert-num">2</span></button>
+        <button type="button" class="likert-btn" data-v="3"><span class="likert-emoji">😐</span><span class="likert-num">3</span></button>
+        <button type="button" class="likert-btn" data-v="4"><span class="likert-emoji">🙂</span><span class="likert-num">4</span></button>
+        <button type="button" class="likert-btn" data-v="5"><span class="likert-emoji">😄</span><span class="likert-num">5</span></button>
       </div>
       <div class="likert-legendas"><span>Dor muscular total / Travado</span><span>Sem dor nenhuma</span></div>
     </div>
@@ -387,11 +400,11 @@
     <div class="tqr-bloco">
       <label>Nível de Estresse — Como está sua mente hoje?</label>
       <div class="likert-row" data-campo="estresse">
-        <button type="button" class="likert-btn" data-v="1">1</button>
-        <button type="button" class="likert-btn" data-v="2">2</button>
-        <button type="button" class="likert-btn" data-v="3">3</button>
-        <button type="button" class="likert-btn" data-v="4">4</button>
-        <button type="button" class="likert-btn" data-v="5">5</button>
+        <button type="button" class="likert-btn" data-v="1"><span class="likert-emoji">😞</span><span class="likert-num">1</span></button>
+        <button type="button" class="likert-btn" data-v="2"><span class="likert-emoji">🙁</span><span class="likert-num">2</span></button>
+        <button type="button" class="likert-btn" data-v="3"><span class="likert-emoji">😐</span><span class="likert-num">3</span></button>
+        <button type="button" class="likert-btn" data-v="4"><span class="likert-emoji">🙂</span><span class="likert-num">4</span></button>
+        <button type="button" class="likert-btn" data-v="5"><span class="likert-emoji">😄</span><span class="likert-num">5</span></button>
       </div>
       <div class="likert-legendas"><span>Extremamente estressado</span><span>Muito relaxado / Tranquilo</span></div>
     </div>
@@ -399,11 +412,11 @@
     <div class="tqr-bloco">
       <label>Humor — Como você se sente emocionalmente?</label>
       <div class="likert-row" data-campo="humor">
-        <button type="button" class="likert-btn" data-v="1">1</button>
-        <button type="button" class="likert-btn" data-v="2">2</button>
-        <button type="button" class="likert-btn" data-v="3">3</button>
-        <button type="button" class="likert-btn" data-v="4">4</button>
-        <button type="button" class="likert-btn" data-v="5">5</button>
+        <button type="button" class="likert-btn" data-v="1"><span class="likert-emoji">😞</span><span class="likert-num">1</span></button>
+        <button type="button" class="likert-btn" data-v="2"><span class="likert-emoji">🙁</span><span class="likert-num">2</span></button>
+        <button type="button" class="likert-btn" data-v="3"><span class="likert-emoji">😐</span><span class="likert-num">3</span></button>
+        <button type="button" class="likert-btn" data-v="4"><span class="likert-emoji">🙂</span><span class="likert-num">4</span></button>
+        <button type="button" class="likert-btn" data-v="5"><span class="likert-emoji">😄</span><span class="likert-num">5</span></button>
       </div>
       <div class="likert-legendas"><span>Muito irritado / Deprimido</span><span>Excelente humor / Feliz</span></div>
     </div>
@@ -411,9 +424,9 @@
     <div class="tqr-bloco">
       <label>Alimentação — Como foi sua alimentação ontem?</label>
       <div class="likert-row" data-campo="alimentacao" data-tipo="texto">
-        <button type="button" class="likert-btn" data-v="ruim">Ruim</button>
-        <button type="button" class="likert-btn" data-v="boa">Boa</button>
-        <button type="button" class="likert-btn" data-v="otima">Ótima</button>
+        <button type="button" class="likert-btn" data-v="ruim"><span class="likert-emoji">😞</span><span class="likert-num">Ruim</span></button>
+        <button type="button" class="likert-btn" data-v="boa"><span class="likert-emoji">😐</span><span class="likert-num">Boa</span></button>
+        <button type="button" class="likert-btn" data-v="otima"><span class="likert-emoji">😄</span><span class="likert-num">Ótima</span></button>
       </div>
     </div>
 
@@ -640,9 +653,10 @@ async function iniciarApp() {
     // para só então buscar as sessões), o que soma o tempo de duas viagens ao servidor do Apps Script
     // antes de mostrar qualquer coisa. Como uma não depende da outra, disparamos as duas ao mesmo tempo
     // e cortamos praticamente pela metade o tempo de carregamento inicial do painel do treinador.
-    const [respAlunos, respSessoesTodos] = await Promise.all([
+    const [respAlunos, respSessoesTodos, respTqrTodos] = await Promise.all([
       chamarApi({ action: 'listAlunos' }),
       chamarApi({ action: 'getSessoesTodos' }),
+      chamarApi({ action: 'getTqrTodos' }),
     ]);
     alunos = respAlunos.ok ? ordenarPorNome(respAlunos.alunos) : [];
     sessoesTodosCache = respSessoesTodos.ok ? respSessoesTodos.sessoes : [];
@@ -657,7 +671,7 @@ async function iniciarApp() {
         '<button type="button" class="secondary small" id="btnTentarNovoAlunos" style="width:100%;margin-top:6px;">Tentar novamente</button>';
       document.getElementById('btnTentarNovoAlunos').addEventListener('click', () => iniciarApp());
     }
-    await renderVisaoGeralTreinador(respSessoesTodos, !respAlunos.ok);
+    await renderVisaoGeralTreinador(respSessoesTodos, !respAlunos.ok, respTqrTodos);
   } else {
     document.getElementById('sidebarTreinador').classList.add('hidden');
     alunoAtual = sessao.usuario;
@@ -741,6 +755,59 @@ document.getElementById('btnFecharBorg').addEventListener('click', () => {
    calculada no servidor) — perguntar de novo seria redundante.
 ================================================================================================= */
 
+// Escala de cores verde→vermelho + rostos padronizados para as respostas do check-in de bem-estar —
+// pedido do Paulo para dar pra "ver como está cada resposta" num piscar de olhos, sem precisar ler
+// os números. As mesmas cores/emojis são usadas nos botões do formulário, nos badges de resumo
+// (hoje/semana/mês), na tabela de histórico e na visão geral do treinador.
+const ESCALA_COR_1A5 = { 1:'#D64545', 2:'#E08A3C', 3:'#D4A93A', 4:'#8FBF4A', 5:'#4CAF50' };
+const ESCALA_EMOJI_1A5 = { 1:'😞', 2:'🙁', 3:'😐', 4:'🙂', 5:'😄' };
+function corEscala1a5(v) {
+  if (v === null || v === undefined || isNaN(v)) return '#999999';
+  return ESCALA_COR_1A5[Math.min(5, Math.max(1, Math.round(v)))];
+}
+function emojiEscala1a5(v) {
+  if (v === null || v === undefined || isNaN(v)) return '❔';
+  return ESCALA_EMOJI_1A5[Math.min(5, Math.max(1, Math.round(v)))];
+}
+const ALIMENTACAO_COR = { ruim:'#D64545', boa:'#D4A93A', otima:'#4CAF50' };
+const ALIMENTACAO_EMOJI = { ruim:'😞', boa:'😐', otima:'😄' };
+function corAlimentacao(v) { return ALIMENTACAO_COR[v] || '#999999'; }
+function emojiAlimentacao(v) { return ALIMENTACAO_EMOJI[v] || '❔'; }
+// TQR (6–20, Kenttä-Hassmén): quanto maior, melhor a recuperação — faixas aproximadamente iguais
+// dividindo o intervalo 6–20 nos mesmos 4 níveis de cor usados nas escalas 1-5.
+function corTqr(v) {
+  if (v === null || v === undefined || isNaN(v)) return '#999999';
+  if (v <= 9) return '#D64545';
+  if (v <= 13) return '#E08A3C';
+  if (v <= 16) return '#D4A93A';
+  return '#4CAF50';
+}
+function emojiTqr(v) {
+  if (v === null || v === undefined || isNaN(v)) return '❔';
+  if (v <= 9) return '😞';
+  if (v <= 13) return '🙁';
+  if (v <= 16) return '🙂';
+  return '😄';
+}
+function badgeTqr(label, valorExibido, cor, emoji) {
+  return `<span class="badge-tqr" style="border-color:${cor}66;background:${cor}22;">` +
+    `<span style="margin-right:4px;">${emoji}</span>${label} <b style="color:${cor};">${valorExibido}</b></span>`;
+}
+// Célula de tabela com emoji + valor colorido — usada no histórico de check-ins (TQR) e na visão
+// geral do treinador, para o mesmo golpe de vista rápido das badges acima.
+function celulaTqr(valorExibido, cor, emoji) {
+  return `<span style="white-space:nowrap;">${emoji} <b style="color:${cor};">${valorExibido}</b></span>`;
+}
+
+// Coluna "Bem-estar hoje" do Relatório geral (visão do treinador, sem precisar abrir cada aluno) —
+// mostra se o check-in de hoje já foi respondido e, se sim, o TQR com a mesma cor/emoji padronizados.
+function renderBemEstarHojeOverview(tqrHoje) {
+  if (!tqrHoje) {
+    return '<span class="tag-inativo" title="Check-in de hoje ainda não respondido">⏳ não respondeu</span>';
+  }
+  return celulaTqr('TQR ' + tqrHoje.tqr + '/20', corTqr(tqrHoje.tqr), emojiTqr(tqrHoje.tqr));
+}
+
 // Escala de Recuperação Total (TQR, Kenttä-Hassmén, 6–20) — mesma estrutura de {v, label} da escala
 // de Borg acima, reaproveitando o mesmo componente visual de lista (.borg-row/.borg-lista).
 const TQR_ESCALA = [
@@ -765,12 +832,15 @@ let tqrRespostas = { fadiga: null, sono: null, dor_muscular: null, estresse: nul
 
 function renderTqrEscalaLista() {
   const el = document.getElementById('tqrEscalaLista');
-  el.innerHTML = TQR_ESCALA.map(o => `
-    <div class="borg-row${tqrEscalaSelecionada === o.v ? ' selecionada' : ''}" data-v="${o.v}" style="background:#3A3A40">
-      <span class="borg-num">${o.v}</span>
+  el.innerHTML = TQR_ESCALA.map(o => {
+    const cor = corTqr(o.v);
+    return `
+    <div class="borg-row${tqrEscalaSelecionada === o.v ? ' selecionada' : ''}" data-v="${o.v}" style="background:#3A3A40;border-left:4px solid ${cor};">
+      <span class="borg-num" style="color:${cor};">${emojiTqr(o.v)} ${o.v}</span>
       <span class="borg-label">${o.label}</span>
     </div>
-  `).join('');
+  `;
+  }).join('');
   el.querySelectorAll('.borg-row').forEach(row => {
     row.addEventListener('click', () => selecionarEscalaTqr(Number(row.dataset.v)));
   });
@@ -780,8 +850,9 @@ function selecionarEscalaTqr(v) {
   tqrEscalaSelecionada = v;
   const info = TQR_ESCALA.find(o => o.v === v);
   document.getElementById('tqrValorEscala').value = v;
-  document.getElementById('tqrEscalaTriggerTexto').textContent = v + ' — ' + info.label;
+  document.getElementById('tqrEscalaTriggerTexto').textContent = emojiTqr(v) + ' ' + v + ' — ' + info.label;
   document.getElementById('btnAbrirEscalaTqr').classList.add('selecionado');
+  document.getElementById('btnAbrirEscalaTqr').style.borderColor = corTqr(v);
   document.getElementById('modalEscalaTqr').classList.add('hidden');
 }
 
@@ -818,6 +889,7 @@ function abrirModalTqrObrigatorio() {
   document.getElementById('tqrValorEscala').value = '';
   document.getElementById('tqrEscalaTriggerTexto').textContent = 'Toque para selecionar';
   document.getElementById('btnAbrirEscalaTqr').classList.remove('selecionado');
+  document.getElementById('btnAbrirEscalaTqr').style.borderColor = '';
   document.querySelectorAll('#modalTqrObrigatorio .likert-btn').forEach(b => b.classList.remove('selecionado'));
   document.getElementById('tqrMsg').innerHTML = '';
   document.getElementById('modalTqrObrigatorio').classList.remove('hidden');
@@ -870,13 +942,13 @@ function renderTqrResumoHoje(tqrHoje, souTreinador) {
   }
   const v = tqrHoje.valores;
   return '<div class="tqr-resumo-hoje">' +
-    `<span class="badge-tqr">Fadiga <b>${v.fadiga}/5</b></span>` +
-    `<span class="badge-tqr">Sono <b>${v.sono}/5</b></span>` +
-    `<span class="badge-tqr">Dor muscular <b>${v.dor_muscular}/5</b></span>` +
-    `<span class="badge-tqr">Estresse <b>${v.estresse}/5</b></span>` +
-    `<span class="badge-tqr">Humor <b>${v.humor}/5</b></span>` +
-    `<span class="badge-tqr">Alimentação <b>${labelAlimentacao(v.alimentacao)}</b></span>` +
-    `<span class="badge-tqr">TQR <b>${v.tqr}/20</b></span>` +
+    badgeTqr('Fadiga', v.fadiga + '/5', corEscala1a5(v.fadiga), emojiEscala1a5(v.fadiga)) +
+    badgeTqr('Sono', v.sono + '/5', corEscala1a5(v.sono), emojiEscala1a5(v.sono)) +
+    badgeTqr('Dor muscular', v.dor_muscular + '/5', corEscala1a5(v.dor_muscular), emojiEscala1a5(v.dor_muscular)) +
+    badgeTqr('Estresse', v.estresse + '/5', corEscala1a5(v.estresse), emojiEscala1a5(v.estresse)) +
+    badgeTqr('Humor', v.humor + '/5', corEscala1a5(v.humor), emojiEscala1a5(v.humor)) +
+    badgeTqr('Alimentação', labelAlimentacao(v.alimentacao), corAlimentacao(v.alimentacao), emojiAlimentacao(v.alimentacao)) +
+    badgeTqr('TQR', v.tqr + '/20', corTqr(v.tqr), emojiTqr(v.tqr)) +
     '</div>';
 }
 
@@ -916,16 +988,18 @@ function renderResumoPeriodoTqr(titulo, resumo) {
   }
   const alimNota = resumo.alimentacao !== null ? Math.round(resumo.alimentacao) : null;
   const alimTexto = alimNota !== null ? `${ALIMENTACAO_LABEL_POR_NOTA[alimNota] || '—'} (${resumo.alimentacao})` : '—';
+  const corAlim = alimNota !== null ? ALIMENTACAO_COR[{1:'ruim',2:'boa',3:'otima'}[alimNota]] : '#999999';
+  const emojiAlim = alimNota !== null ? ALIMENTACAO_EMOJI[{1:'ruim',2:'boa',3:'otima'}[alimNota]] : '❔';
   return '<div class="tqr-bloco">' +
     `<label>${titulo} <span style="font-weight:400;color:var(--text-dim)">(${resumo.n} check-in${resumo.n === 1 ? '' : 's'})</span></label>` +
     '<div class="tqr-resumo-hoje">' +
-    `<span class="badge-tqr">Fadiga <b>${resumo.fadiga ?? '—'}</b></span>` +
-    `<span class="badge-tqr">Sono <b>${resumo.sono ?? '—'}</b></span>` +
-    `<span class="badge-tqr">Dor muscular <b>${resumo.dor_muscular ?? '—'}</b></span>` +
-    `<span class="badge-tqr">Estresse <b>${resumo.estresse ?? '—'}</b></span>` +
-    `<span class="badge-tqr">Humor <b>${resumo.humor ?? '—'}</b></span>` +
-    `<span class="badge-tqr">Alimentação <b>${alimTexto}</b></span>` +
-    `<span class="badge-tqr">TQR <b>${resumo.tqr ?? '—'}</b></span>` +
+    badgeTqr('Fadiga', resumo.fadiga ?? '—', corEscala1a5(resumo.fadiga), emojiEscala1a5(resumo.fadiga)) +
+    badgeTqr('Sono', resumo.sono ?? '—', corEscala1a5(resumo.sono), emojiEscala1a5(resumo.sono)) +
+    badgeTqr('Dor muscular', resumo.dor_muscular ?? '—', corEscala1a5(resumo.dor_muscular), emojiEscala1a5(resumo.dor_muscular)) +
+    badgeTqr('Estresse', resumo.estresse ?? '—', corEscala1a5(resumo.estresse), emojiEscala1a5(resumo.estresse)) +
+    badgeTqr('Humor', resumo.humor ?? '—', corEscala1a5(resumo.humor), emojiEscala1a5(resumo.humor)) +
+    badgeTqr('Alimentação', alimTexto, corAlim, emojiAlim) +
+    badgeTqr('TQR', resumo.tqr ?? '—', corTqr(resumo.tqr), emojiTqr(resumo.tqr)) +
     '</div></div>';
 }
 
@@ -1307,8 +1381,9 @@ async function renderSenhasAlunos() {
    respPreCarregado: opcional — resultado de { action:'getSessoesTodos' } já buscado antecipadamente
    (usado na carga inicial do painel do treinador, em paralelo com a lista de alunos, para não fazer
    duas viagens ao servidor uma atrás da outra). Quando chamada depois (ex: clique em "Relatório geral"),
-   busca os dados normalmente. */
-async function renderVisaoGeralTreinador(respPreCarregado, alunosFalharam) {
+   busca os dados normalmente. respTqrPreCarregado: mesma ideia, para { action:'getTqrTodos' } — permite
+   ver o bem-estar (TQR) de hoje de cada aluno direto nesta tela, sem precisar abrir o painel de cada um. */
+async function renderVisaoGeralTreinador(respPreCarregado, alunosFalharam, respTqrPreCarregado) {
   document.getElementById('painelAluno').innerHTML = '';
   const el = document.getElementById('visaoGeral');
 
@@ -1344,6 +1419,17 @@ async function renderVisaoGeralTreinador(respPreCarregado, alunosFalharam) {
   // página, mesmo depois de novas sessões serem lançadas.
   if (resp.ok) { sessoesTodosCache = todasSessoes; renderListaAlunos(); }
 
+  // Bem-estar (TQR) de hoje de todos os alunos, para a coluna "Check-in hoje" da tabela abaixo. Se
+  // essa busca falhar, a tabela simplesmente mostra "—" nessa coluna em vez de quebrar o relatório
+  // inteiro (o resto dos dados, que já estavam disponíveis, continua aparecendo normalmente).
+  const respTqr = respTqrPreCarregado || await chamarApi({ action: 'getTqrTodos' });
+  const tqrTodos = respTqr.ok ? (respTqr.tqr || []) : [];
+  const hojeIsoRelatorio = hojeISO();
+  const tqrHojePorAluno = {};
+  tqrTodos.forEach(t => {
+    if (t.data === hojeIsoRelatorio) tqrHojePorAluno[t.aluno_usuario] = t;
+  });
+
   const porAluno = {};
   todasSessoes.forEach(s => {
     if (!porAluno[s.aluno_usuario]) porAluno[s.aluno_usuario] = [];
@@ -1364,8 +1450,9 @@ async function renderVisaoGeralTreinador(respPreCarregado, alunosFalharam) {
     const cMono = classificarMonotonia(ultima ? ultima.monotonia : null);
     const cStrain = classificarStrain(ultima ? ultima.strain : null);
     const cAcwr = classificarAcwr(ultima ? ultima.acwr : null);
+    const tqrHoje = tqrHojePorAluno[a.usuario] || null;
 
-    return { aluno: a, ultima, cargaMes: round2(cargaMes), cMono, cStrain, cAcwr };
+    return { aluno: a, ultima, cargaMes: round2(cargaMes), cMono, cStrain, cAcwr, tqrHoje };
   });
 
   linhas.sort((x, y) => PRIORIDADE[x.cAcwr.cor] - PRIORIDADE[y.cAcwr.cor]);
@@ -1403,7 +1490,7 @@ async function renderVisaoGeralTreinador(respPreCarregado, alunosFalharam) {
       <table>
         <thead><tr>
           <th>Aluno</th><th>Carga semana atual (u.a.)</th><th>Carga do mês (u.a.)</th>
-          <th>Monotonia</th><th>Strain</th><th>ACWR</th>
+          <th>Monotonia</th><th>Strain</th><th>ACWR</th><th>Bem-estar hoje (TQR)</th>
         </tr></thead>
         <tbody>${linhas.map(l => `<tr>
           <td>${escapeHtml(l.aluno.nome)}${l.aluno.ativo ? '' : ' <span class="tag-inativo">inativo</span>'}</td>
@@ -1412,6 +1499,7 @@ async function renderVisaoGeralTreinador(respPreCarregado, alunosFalharam) {
           <td>${l.ultima && l.ultima.monotonia !== null ? l.ultima.monotonia : '—'} <span class="badge ${l.cMono.cor}">${l.cMono.texto}</span></td>
           <td>${l.ultima && l.ultima.strain !== null ? l.ultima.strain : '—'} <span class="badge ${l.cStrain.cor}">${l.cStrain.texto}</span></td>
           <td>${l.ultima && l.ultima.acwr !== null ? l.ultima.acwr : '—'} <span class="badge ${l.cAcwr.cor}">${l.cAcwr.texto}</span></td>
+          <td>${renderBemEstarHojeOverview(l.tqrHoje)}</td>
         </tr>`).join('')}</tbody>
       </table>
     </div>
@@ -1491,7 +1579,7 @@ function nomeArquivoPdf(base) {
   return slug + '_' + hojeISO() + '.pdf';
 }
 
-function exportarRelatorioAluno(nomeAluno, sessoes, analise, botao) {
+function exportarRelatorioAluno(nomeAluno, sessoes, analise, tqrHistorico, resumoSemanaTqr, resumoMesTqr, botao) {
   if (botao) { botao.disabled = true; botao.textContent = 'Gerando PDF...'; }
   try {
     const { jsPDF } = window.jspdf;
@@ -1544,6 +1632,83 @@ function exportarRelatorioAluno(nomeAluno, sessoes, analise, botao) {
       } catch (e) { /* se o gráfico não puder ser capturado como imagem, segue sem ele */ }
     }
 
+    // Bem-estar diário (TQR) — pedido do Paulo para também poder ver isso no PDF, não só na tela.
+    // Mesma lógica de resumo (médias semana/mês) e histórico já usadas no painel.
+    if (y > doc.internal.pageSize.getHeight() - 160) { doc.addPage(); y = 40; }
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor('#2A2A2E');
+    doc.text('Bem-estar diário (TQR)', 40, y);
+    y += 14;
+
+    function linhaResumoPdf(titulo, resumo) {
+      if (!resumo) return titulo + ': sem check-ins no período.';
+      const alimNota = resumo.alimentacao !== null ? Math.round(resumo.alimentacao) : null;
+      const alimTexto = alimNota !== null ? (ALIMENTACAO_LABEL_POR_NOTA[alimNota] || '—') : '—';
+      return titulo + ' (' + resumo.n + ' check-in' + (resumo.n === 1 ? '' : 's') + '): ' +
+        'Fadiga ' + (resumo.fadiga ?? '—') + ' · Sono ' + (resumo.sono ?? '—') + ' · Dor musc. ' + (resumo.dor_muscular ?? '—') +
+        ' · Estresse ' + (resumo.estresse ?? '—') + ' · Humor ' + (resumo.humor ?? '—') +
+        ' · Alimentação ' + alimTexto + ' · TQR ' + (resumo.tqr ?? '—');
+    }
+
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor('#333333');
+    [linhaResumoPdf('Esta semana', resumoSemanaTqr), linhaResumoPdf('Este mês', resumoMesTqr)].forEach(linha => {
+      doc.text(linha, 40, y, { maxWidth: doc.internal.pageSize.getWidth() - 80 });
+      y += 14;
+    });
+    y += 6;
+
+    const tqrTabela = (tqrHistorico || []).slice().reverse().map(t => [
+      formatarDataBR(t.data), t.fadiga, t.sono, t.dor_muscular, t.estresse, t.humor, labelAlimentacao(t.alimentacao), t.tqr,
+    ]);
+
+    if (tqrTabela.length) {
+      if (y > doc.internal.pageSize.getHeight() - 100) { doc.addPage(); y = 40; }
+      // Mesma cor verde→vermelho da tela, convertida de hex para [r,g,b] (formato que o autoTable
+      // espera). As colunas 1-6 são as escalas 1-5 e alimentação, a coluna 7 é o TQR (6-20).
+      const tqrHistoricoOrdenado = (tqrHistorico || []).slice().reverse();
+      function hexParaRgbPdf(hex) {
+        const n = parseInt(hex.replace('#', ''), 16);
+        return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+      }
+      doc.autoTable({
+        startY: y,
+        head: [['Data', 'Fadiga', 'Sono', 'Dor Musc.', 'Estresse', 'Humor', 'Alimentação', 'TQR']],
+        body: tqrTabela,
+        theme: 'striped',
+        headStyles: { fillColor: [212, 169, 58], textColor: [30, 30, 30] },
+        styles: { fontSize: 8 },
+        margin: { left: 40, right: 40 },
+        didParseCell: function (data) {
+          if (data.section !== 'body') return;
+          const t = tqrHistoricoOrdenado[data.row.index];
+          if (!t) return;
+          const porColuna = { 1: ['fadiga', corEscala1a5], 2: ['sono', corEscala1a5], 3: ['dor_muscular', corEscala1a5], 4: ['estresse', corEscala1a5], 5: ['humor', corEscala1a5] };
+          if (porColuna[data.column.index]) {
+            const [campo, fnCor] = porColuna[data.column.index];
+            data.cell.styles.textColor = hexParaRgbPdf(fnCor(t[campo]));
+            data.cell.styles.fontStyle = 'bold';
+          } else if (data.column.index === 6) {
+            data.cell.styles.textColor = hexParaRgbPdf(corAlimentacao(t.alimentacao));
+            data.cell.styles.fontStyle = 'bold';
+          } else if (data.column.index === 7) {
+            data.cell.styles.textColor = hexParaRgbPdf(corTqr(t.tqr));
+            data.cell.styles.fontStyle = 'bold';
+          }
+        },
+      });
+      y = doc.lastAutoTable.finalY + 20;
+    } else {
+      doc.setFontSize(9);
+      doc.setTextColor('#666666');
+      doc.text('Nenhum check-in de bem-estar registrado ainda.', 40, y);
+      y += 20;
+    }
+
+    if (y > doc.internal.pageSize.getHeight() - 100) { doc.addPage(); y = 40; }
+
     const sessoesTabela = sessoes.slice().reverse().map(s => [
       formatarDataBR(s.data),
       s.tipo === 'descanso' ? 'Descanso' : (s.atividade || '—'),
@@ -1589,16 +1754,32 @@ function exportarRelatorioGeral(linhas, botao) {
       (l.ultima && l.ultima.monotonia !== null ? l.ultima.monotonia : '—') + '  ' + l.cMono.texto,
       (l.ultima && l.ultima.strain !== null ? l.ultima.strain : '—') + '  ' + l.cStrain.texto,
       (l.ultima && l.ultima.acwr !== null ? l.ultima.acwr : '—') + '  ' + l.cAcwr.texto,
+      l.tqrHoje ? 'TQR ' + l.tqrHoje.tqr + '/20' : 'Não respondeu',
     ]);
+    // Cor da coluna "Bem-estar hoje" segue a mesma rampa verde→vermelho usada na tela (hex → RGB,
+    // já que autoTable usa arrays [r,g,b] em vez de string CSS).
+    function hexParaRgb(hex) {
+      const n = parseInt(hex.replace('#', ''), 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+    const colunaBemEstar = 6;
 
     doc.autoTable({
       startY: y,
-      head: [['Aluno', 'Carga semana (u.a.)', 'Carga mês (u.a.)', 'Monotonia', 'Strain', 'ACWR']],
+      head: [['Aluno', 'Carga semana (u.a.)', 'Carga mês (u.a.)', 'Monotonia', 'Strain', 'ACWR', 'Bem-estar hoje (TQR)']],
       body: corpo,
       theme: 'striped',
       headStyles: { fillColor: [212, 169, 58], textColor: [30, 30, 30] },
       styles: { fontSize: 8 },
       margin: { left: 40, right: 40 },
+      didParseCell: function (data) {
+        if (data.section === 'body' && data.column.index === colunaBemEstar) {
+          const l = linhas[data.row.index];
+          const cor = l.tqrHoje ? corTqr(l.tqrHoje.tqr) : '#999999';
+          data.cell.styles.textColor = hexParaRgb(cor);
+          data.cell.styles.fontStyle = 'bold';
+        }
+      },
     });
 
     doc.save(nomeArquivoPdf('relatorio_geral_equipe'));
@@ -1682,7 +1863,14 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
       <table>
         <thead><tr><th>Data</th><th>Fadiga</th><th>Sono</th><th>Dor Musc.</th><th>Estresse</th><th>Humor</th><th>Alimentação</th><th>TQR</th></tr></thead>
         <tbody>${tqrHistorico.slice().reverse().slice(0,14).map(t => `<tr>
-          <td>${formatarDataBR(t.data)}</td><td>${t.fadiga}</td><td>${t.sono}</td><td>${t.dor_muscular}</td><td>${t.estresse}</td><td>${t.humor}</td><td>${labelAlimentacao(t.alimentacao)}</td><td>${t.tqr}</td>
+          <td>${formatarDataBR(t.data)}</td>
+          <td>${celulaTqr(t.fadiga, corEscala1a5(t.fadiga), emojiEscala1a5(t.fadiga))}</td>
+          <td>${celulaTqr(t.sono, corEscala1a5(t.sono), emojiEscala1a5(t.sono))}</td>
+          <td>${celulaTqr(t.dor_muscular, corEscala1a5(t.dor_muscular), emojiEscala1a5(t.dor_muscular))}</td>
+          <td>${celulaTqr(t.estresse, corEscala1a5(t.estresse), emojiEscala1a5(t.estresse))}</td>
+          <td>${celulaTqr(t.humor, corEscala1a5(t.humor), emojiEscala1a5(t.humor))}</td>
+          <td>${celulaTqr(labelAlimentacao(t.alimentacao), corAlimentacao(t.alimentacao), emojiAlimentacao(t.alimentacao))}</td>
+          <td>${celulaTqr(t.tqr, corTqr(t.tqr), emojiTqr(t.tqr))}</td>
         </tr>`).join('') || '<tr><td colspan="8" style="color:var(--text-dim)">Nenhum check-in registrado ainda.</td></tr>'}</tbody>
       </table>
     </div>
@@ -1741,7 +1929,7 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
   const btnExportarAluno = document.getElementById('btnExportarRelatorioAluno');
   if (btnExportarAluno) {
     btnExportarAluno.addEventListener('click', (ev) => {
-      exportarRelatorioAluno(nomeAluno, sessoes, analise, ev.target);
+      exportarRelatorioAluno(nomeAluno, sessoes, analise, tqrHistorico, resumoSemanaTqr, resumoMesTqr, ev.target);
     });
   }
 
