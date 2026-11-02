@@ -167,6 +167,23 @@
   .btn-excluir-sessao,.btn-excluir-anotacao{background:var(--red);color:#fff;}
   .btn-excluir-sessao:hover,.btn-excluir-anotacao:hover{opacity:.85;}
 
+  /* CHECK-IN DIÁRIO DE BEM-ESTAR (TQR) — formulário obrigatório no primeiro acesso do dia */
+  .modal-tqr{max-width:480px;max-height:90vh;overflow-y:auto;}
+  .modal-tqr .sub{font-size:12px;color:var(--text-dim);margin-bottom:18px;}
+  .tqr-bloco{margin-bottom:18px;}
+  .tqr-bloco label{font-size:13px;color:var(--text);margin-bottom:8px;font-weight:600;display:block;}
+  .likert-row{display:flex;gap:8px;}
+  .likert-btn{
+    flex:1;background:#17171A;border:1px solid var(--line);color:var(--text-dim);
+    padding:10px 0;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;
+  }
+  .likert-btn.selecionado{background:var(--gold);color:#1F1F23;border-color:var(--gold);}
+  .likert-legendas{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-top:6px;gap:10px;}
+  .likert-legendas span:last-child{text-align:right;}
+  .tqr-resumo-hoje{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+  .tqr-resumo-hoje .badge-tqr{background:var(--bg-row);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text-dim);}
+  .tqr-resumo-hoje .badge-tqr b{color:var(--gold-light);}
+
   @media (max-width:760px){
     .app{flex-direction:column;}
     nav.sidebar{width:100%;border-right:none;border-bottom:1px solid var(--line);max-height:220px;}
@@ -316,6 +333,112 @@
     <div class="borg-lista" id="borgLista"></div>
     <div class="actions">
       <button class="secondary" id="btnFecharBorg">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal obrigatório: check-in diário de bem-estar (TQR) — pedido do Paulo, com base no formulário
+     que ele já usava no Google Forms. Sem botão de fechar/cancelar de propósito: só fecha depois de
+     enviado, porque é obrigatório no primeiro acesso do dia (aparece assim que o aluno loga, antes de
+     ele ver o resto do app). Não tem "Nome" nem "Data" como no formulário original — o sistema já sabe
+     quem é (login) e qual é o dia (calculado no servidor), então essas duas perguntas ficariam redundantes. -->
+<div class="modal-bg hidden" id="modalTqrObrigatorio">
+  <div class="modal modal-tqr">
+    <h3>Check-in diário</h3>
+    <div class="sub">Responda antes de treinar hoje — é rápido e ajuda o treinador a acompanhar sua recuperação.</div>
+    <div id="tqrMsg"></div>
+
+    <div class="tqr-bloco">
+      <label>Fadiga — Como está seu nível de energia hoje?</label>
+      <div class="likert-row" data-campo="fadiga">
+        <button type="button" class="likert-btn" data-v="1">1</button>
+        <button type="button" class="likert-btn" data-v="2">2</button>
+        <button type="button" class="likert-btn" data-v="3">3</button>
+        <button type="button" class="likert-btn" data-v="4">4</button>
+        <button type="button" class="likert-btn" data-v="5">5</button>
+      </div>
+      <div class="likert-legendas"><span>Muito fadigado / Sem energia</span><span>Com muita energia / Disposto</span></div>
+    </div>
+
+    <div class="tqr-bloco">
+      <label>Qualidade do Sono — Como foi sua noite de sono?</label>
+      <div class="likert-row" data-campo="sono">
+        <button type="button" class="likert-btn" data-v="1">1</button>
+        <button type="button" class="likert-btn" data-v="2">2</button>
+        <button type="button" class="likert-btn" data-v="3">3</button>
+        <button type="button" class="likert-btn" data-v="4">4</button>
+        <button type="button" class="likert-btn" data-v="5">5</button>
+      </div>
+      <div class="likert-legendas"><span>Insônia / Dormi muito mal</span><span>Sono excelente / Reparador</span></div>
+    </div>
+
+    <div class="tqr-bloco">
+      <label>Dor Muscular — Você sente dores musculares tardias decorrentes dos treinos?</label>
+      <div class="likert-row" data-campo="dor_muscular">
+        <button type="button" class="likert-btn" data-v="1">1</button>
+        <button type="button" class="likert-btn" data-v="2">2</button>
+        <button type="button" class="likert-btn" data-v="3">3</button>
+        <button type="button" class="likert-btn" data-v="4">4</button>
+        <button type="button" class="likert-btn" data-v="5">5</button>
+      </div>
+      <div class="likert-legendas"><span>Dor muscular total / Travado</span><span>Sem dor nenhuma</span></div>
+    </div>
+
+    <div class="tqr-bloco">
+      <label>Nível de Estresse — Como está sua mente hoje?</label>
+      <div class="likert-row" data-campo="estresse">
+        <button type="button" class="likert-btn" data-v="1">1</button>
+        <button type="button" class="likert-btn" data-v="2">2</button>
+        <button type="button" class="likert-btn" data-v="3">3</button>
+        <button type="button" class="likert-btn" data-v="4">4</button>
+        <button type="button" class="likert-btn" data-v="5">5</button>
+      </div>
+      <div class="likert-legendas"><span>Extremamente estressado</span><span>Muito relaxado / Tranquilo</span></div>
+    </div>
+
+    <div class="tqr-bloco">
+      <label>Humor — Como você se sente emocionalmente?</label>
+      <div class="likert-row" data-campo="humor">
+        <button type="button" class="likert-btn" data-v="1">1</button>
+        <button type="button" class="likert-btn" data-v="2">2</button>
+        <button type="button" class="likert-btn" data-v="3">3</button>
+        <button type="button" class="likert-btn" data-v="4">4</button>
+        <button type="button" class="likert-btn" data-v="5">5</button>
+      </div>
+      <div class="likert-legendas"><span>Muito irritado / Deprimido</span><span>Excelente humor / Feliz</span></div>
+    </div>
+
+    <div class="tqr-bloco">
+      <label>Alimentação — Como foi sua alimentação ontem?</label>
+      <div class="likert-row" data-campo="alimentacao" data-tipo="texto">
+        <button type="button" class="likert-btn" data-v="ruim">Ruim</button>
+        <button type="button" class="likert-btn" data-v="boa">Boa</button>
+        <button type="button" class="likert-btn" data-v="otima">Ótima</button>
+      </div>
+    </div>
+
+    <div class="tqr-bloco">
+      <label>Escala de Recuperação Total (TQR) — Como você se sente em relação à sua recuperação geral (física e mental) neste momento?</label>
+      <input type="hidden" id="tqrValorEscala">
+      <button type="button" class="pse-trigger" id="btnAbrirEscalaTqr">
+        <span id="tqrEscalaTriggerTexto">Toque para selecionar</span><span class="seta">▾</span>
+      </button>
+    </div>
+
+    <div class="actions">
+      <button id="btnEnviarTqr" style="width:100%">Enviar check-in</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal escala TQR (6–20, Kenttä-Hassmén) — mesmo padrão visual/interação do modal de Borg acima -->
+<div class="modal-bg hidden" id="modalEscalaTqr">
+  <div class="modal modal-borg">
+    <h3>Recuperação Total (TQR)</h3>
+    <div class="sub">Toque no nível que melhor descreve sua recuperação física e mental agora.</div>
+    <div class="borg-lista" id="tqrEscalaLista"></div>
+    <div class="actions">
+      <button class="secondary" id="btnFecharEscalaTqr">Fechar</button>
     </div>
   </div>
 </div>
@@ -607,6 +730,204 @@ function selecionarPse(v) {
 document.getElementById('btnFecharBorg').addEventListener('click', () => {
   document.getElementById('modalBorg').classList.add('hidden');
 });
+
+/* ============================= CHECK-IN DIÁRIO DE BEM-ESTAR (TQR) =============================
+   Formulário obrigatório, baseado no Google Forms que o Paulo já usava com os alunos (mesmas
+   perguntas e mesmos rótulos de texto). Aparece automaticamente no primeiro acesso do dia de cada
+   aluno (gatilho fica em renderPainelAluno, usando o tqrHoje.respondido devolvido pelo servidor —
+   o servidor decide o que é "hoje", não o relógio do celular do aluno) e bloqueia o resto do app até
+   ser enviado: por isso o modal não tem botão de fechar/cancelar.
+   Não repete "Nome" nem "Data" do formulário original porque o sistema já sabe os dois (login e data
+   calculada no servidor) — perguntar de novo seria redundante.
+================================================================================================= */
+
+// Escala de Recuperação Total (TQR, Kenttä-Hassmén, 6–20) — mesma estrutura de {v, label} da escala
+// de Borg acima, reaproveitando o mesmo componente visual de lista (.borg-row/.borg-lista).
+const TQR_ESCALA = [
+  { v:6,  label:'Absolutamente nada recuperado' },
+  { v:7,  label:'Extremamente mal recuperado' },
+  { v:8,  label:'Muito mal recuperado' },
+  { v:9,  label:'Mal recuperado' },
+  { v:10, label:'Recuperação muito leve' },
+  { v:11, label:'Recuperação leve' },
+  { v:12, label:'Recuperação moderada' },
+  { v:13, label:'Bom estado de recuperação' },
+  { v:14, label:'Bem recuperado' },
+  { v:15, label:'Muito bem recuperado' },
+  { v:16, label:'Excelente recuperação' },
+  { v:17, label:'Recuperação quase total' },
+  { v:18, label:'Totalmente recuperado' },
+  { v:19, label:'Extremamente bem recuperado' },
+  { v:20, label:'Perfeitamente recuperado' },
+];
+let tqrEscalaSelecionada = null;
+let tqrRespostas = { fadiga: null, sono: null, dor_muscular: null, estresse: null, humor: null, alimentacao: null };
+
+function renderTqrEscalaLista() {
+  const el = document.getElementById('tqrEscalaLista');
+  el.innerHTML = TQR_ESCALA.map(o => `
+    <div class="borg-row${tqrEscalaSelecionada === o.v ? ' selecionada' : ''}" data-v="${o.v}" style="background:#3A3A40">
+      <span class="borg-num">${o.v}</span>
+      <span class="borg-label">${o.label}</span>
+    </div>
+  `).join('');
+  el.querySelectorAll('.borg-row').forEach(row => {
+    row.addEventListener('click', () => selecionarEscalaTqr(Number(row.dataset.v)));
+  });
+}
+
+function selecionarEscalaTqr(v) {
+  tqrEscalaSelecionada = v;
+  const info = TQR_ESCALA.find(o => o.v === v);
+  document.getElementById('tqrValorEscala').value = v;
+  document.getElementById('tqrEscalaTriggerTexto').textContent = v + ' — ' + info.label;
+  document.getElementById('btnAbrirEscalaTqr').classList.add('selecionado');
+  document.getElementById('modalEscalaTqr').classList.add('hidden');
+}
+
+document.getElementById('btnAbrirEscalaTqr').addEventListener('click', () => {
+  renderTqrEscalaLista();
+  document.getElementById('modalEscalaTqr').classList.remove('hidden');
+});
+document.getElementById('btnFecharEscalaTqr').addEventListener('click', () => {
+  document.getElementById('modalEscalaTqr').classList.add('hidden');
+});
+
+// Os 5 blocos de 1–5 (fadiga/sono/dor/estresse/humor) já existem prontos no HTML (não são gerados
+// por template), então os listeners são ligados uma única vez aqui, igual aos outros modais estáticos
+// desta página.
+document.querySelectorAll('#modalTqrObrigatorio .likert-row').forEach(row => {
+  row.querySelectorAll('.likert-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const campo = row.dataset.campo;
+      // alimentacao é texto (ruim/boa/otima), os outros blocos são escalas 1-5 — o atributo
+      // data-tipo="texto" no HTML avisa este handler genérico para não forçar Number().
+      tqrRespostas[campo] = row.dataset.tipo === 'texto' ? btn.dataset.v : Number(btn.dataset.v);
+      row.querySelectorAll('.likert-btn').forEach(b => b.classList.remove('selecionado'));
+      btn.classList.add('selecionado');
+    });
+  });
+});
+
+// Reseta o formulário (estado em memória + visual) antes de mostrar o modal — importante porque o
+// elemento é fixo no DOM (não recriado a cada vez), então sem isso uma resposta de um dia poderia
+// aparecer pré-selecionada no check-in do dia seguinte.
+function abrirModalTqrObrigatorio() {
+  tqrRespostas = { fadiga: null, sono: null, dor_muscular: null, estresse: null, humor: null, alimentacao: null };
+  tqrEscalaSelecionada = null;
+  document.getElementById('tqrValorEscala').value = '';
+  document.getElementById('tqrEscalaTriggerTexto').textContent = 'Toque para selecionar';
+  document.getElementById('btnAbrirEscalaTqr').classList.remove('selecionado');
+  document.querySelectorAll('#modalTqrObrigatorio .likert-btn').forEach(b => b.classList.remove('selecionado'));
+  document.getElementById('tqrMsg').innerHTML = '';
+  document.getElementById('modalTqrObrigatorio').classList.remove('hidden');
+}
+
+document.getElementById('btnEnviarTqr').addEventListener('click', async () => {
+  const msgEl = document.getElementById('tqrMsg');
+  msgEl.innerHTML = '';
+  const campos = ['fadiga', 'sono', 'dor_muscular', 'estresse', 'humor', 'alimentacao'];
+  const faltando = campos.some(c => !tqrRespostas[c]) || !tqrEscalaSelecionada;
+  if (faltando) {
+    msgEl.innerHTML = '<div class="msg-erro">Responda todas as perguntas antes de enviar.</div>';
+    return;
+  }
+  const btn = document.getElementById('btnEnviarTqr');
+  btn.disabled = true; btn.textContent = 'Enviando...';
+  const resp = await chamarApi({
+    action: 'salvarTqr',
+    fadiga: tqrRespostas.fadiga,
+    sono: tqrRespostas.sono,
+    dor_muscular: tqrRespostas.dor_muscular,
+    estresse: tqrRespostas.estresse,
+    humor: tqrRespostas.humor,
+    alimentacao: tqrRespostas.alimentacao,
+    tqr: tqrEscalaSelecionada,
+  });
+  btn.disabled = false; btn.textContent = 'Enviar check-in';
+  if (!resp.ok) {
+    msgEl.innerHTML = '<div class="msg-erro">' + escapeHtml(resp.erro || 'Erro ao enviar o check-in.') + '</div>';
+    return;
+  }
+  document.getElementById('modalTqrObrigatorio').classList.add('hidden');
+  // Reabre o painel do próprio aluno — agora com tqrHoje.respondido = true, então desta vez a
+  // verificação em renderPainelAluno deixa passar e mostra o painel normalmente.
+  await renderPainelAluno(sessao.usuario, sessao.nome, false);
+});
+
+// Resumo mostrado no topo da seção "Bem-estar diário (TQR)" do painel — visível tanto para o aluno
+// (depois de responder) quanto para o treinador (inclusive quando o aluno AINDA NÃO respondeu hoje,
+// o que é útil pro treinador: dá pra ver quem está deixando de fazer o check-in).
+function labelAlimentacao(v) {
+  return v === 'ruim' ? 'Ruim' : v === 'boa' ? 'Boa' : v === 'otima' ? 'Ótima' : '—';
+}
+
+function renderTqrResumoHoje(tqrHoje, souTreinador) {
+  if (!tqrHoje || !tqrHoje.respondido) {
+    return '<div class="info-note" style="margin-bottom:14px;">' +
+      (souTreinador ? 'Check-in de hoje ainda não foi respondido por este aluno.' : 'Check-in de hoje ainda não respondido.') +
+      '</div>';
+  }
+  const v = tqrHoje.valores;
+  return '<div class="tqr-resumo-hoje">' +
+    `<span class="badge-tqr">Fadiga <b>${v.fadiga}/5</b></span>` +
+    `<span class="badge-tqr">Sono <b>${v.sono}/5</b></span>` +
+    `<span class="badge-tqr">Dor muscular <b>${v.dor_muscular}/5</b></span>` +
+    `<span class="badge-tqr">Estresse <b>${v.estresse}/5</b></span>` +
+    `<span class="badge-tqr">Humor <b>${v.humor}/5</b></span>` +
+    `<span class="badge-tqr">Alimentação <b>${labelAlimentacao(v.alimentacao)}</b></span>` +
+    `<span class="badge-tqr">TQR <b>${v.tqr}/20</b></span>` +
+    '</div>';
+}
+
+// Médias semanal/mensal do TQR — pedido do Paulo ("relatório semanal, mensal, com média das
+// respostas"). Calculado no cliente a partir do tqrHistorico já trazido por getPainelAluno (sem
+// chamada extra ao servidor). Alimentação (texto) é convertida para uma nota 1-3 só para poder
+// entrar na média, e depois volta a ser mostrada como rótulo (Ruim/Boa/Ótima) arredondando a média.
+const ALIMENTACAO_SCORE = { ruim: 1, boa: 2, otima: 3 };
+const ALIMENTACAO_LABEL_POR_NOTA = { 1: 'Ruim', 2: 'Boa', 3: 'Ótima' };
+
+function mediaCampoTqr(lista, campo) {
+  const vals = lista
+    .map(t => campo === 'alimentacao' ? ALIMENTACAO_SCORE[t.alimentacao] : Number(t[campo]))
+    .filter(v => v !== undefined && v !== null && !isNaN(v));
+  if (!vals.length) return null;
+  return round2(vals.reduce((a, b) => a + b, 0) / vals.length);
+}
+
+function resumoPeriodoTqr(tqrHistorico, inicio) {
+  const lista = tqrHistorico.filter(t => new Date(t.data + 'T00:00:00') >= inicio);
+  if (!lista.length) return null;
+  return {
+    n: lista.length,
+    fadiga: mediaCampoTqr(lista, 'fadiga'),
+    sono: mediaCampoTqr(lista, 'sono'),
+    dor_muscular: mediaCampoTqr(lista, 'dor_muscular'),
+    estresse: mediaCampoTqr(lista, 'estresse'),
+    humor: mediaCampoTqr(lista, 'humor'),
+    alimentacao: mediaCampoTqr(lista, 'alimentacao'),
+    tqr: mediaCampoTqr(lista, 'tqr'),
+  };
+}
+
+function renderResumoPeriodoTqr(titulo, resumo) {
+  if (!resumo) {
+    return `<div class="tqr-bloco"><label>${titulo}</label><div class="info-note">Nenhum check-in no período.</div></div>`;
+  }
+  const alimNota = resumo.alimentacao !== null ? Math.round(resumo.alimentacao) : null;
+  const alimTexto = alimNota !== null ? `${ALIMENTACAO_LABEL_POR_NOTA[alimNota] || '—'} (${resumo.alimentacao})` : '—';
+  return '<div class="tqr-bloco">' +
+    `<label>${titulo} <span style="font-weight:400;color:var(--text-dim)">(${resumo.n} check-in${resumo.n === 1 ? '' : 's'})</span></label>` +
+    '<div class="tqr-resumo-hoje">' +
+    `<span class="badge-tqr">Fadiga <b>${resumo.fadiga ?? '—'}</b></span>` +
+    `<span class="badge-tqr">Sono <b>${resumo.sono ?? '—'}</b></span>` +
+    `<span class="badge-tqr">Dor muscular <b>${resumo.dor_muscular ?? '—'}</b></span>` +
+    `<span class="badge-tqr">Estresse <b>${resumo.estresse ?? '—'}</b></span>` +
+    `<span class="badge-tqr">Humor <b>${resumo.humor ?? '—'}</b></span>` +
+    `<span class="badge-tqr">Alimentação <b>${alimTexto}</b></span>` +
+    `<span class="badge-tqr">TQR <b>${resumo.tqr ?? '—'}</b></span>` +
+    '</div></div>';
+}
 
 document.getElementById('btnAbrirBorgEdicao').addEventListener('click', () => {
   abrirModalBorg({ hidden: 'ePse', texto: 'pseTriggerTextoEdicao', trigger: 'btnAbrirBorgEdicao' });
@@ -1300,7 +1621,21 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
   const resp = await chamarApi({ action: 'getPainelAluno', aluno_usuario: usuarioAluno });
   const sessoes = resp.ok ? resp.sessoes : [];
   const anotacoes = resp.ok ? resp.anotacoes : [];
+  const tqrHoje = resp.ok ? resp.tqrHoje : null;
+  const tqrHistorico = resp.ok ? (resp.tqrHistorico || []) : [];
+  const resumoSemanaTqr = resumoPeriodoTqr(tqrHistorico, segundaDaSemana(new Date()));
+  const resumoMesTqr = resumoPeriodoTqr(tqrHistorico, new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const analise = analisarCargaInterna(sessoes);
+
+  // Check-in diário obrigatório (TQR): só bloqueia quando é o PRÓPRIO aluno acessando (nunca o
+  // treinador navegando pelo painel de um aluno) e só quando o servidor diz que hoje ainda não foi
+  // respondido. Mostra o modal e para por aqui — o resto do painel só é montado depois do envio
+  // (veja o fim do listener de btnEnviarTqr, que chama renderPainelAluno de novo).
+  if (!souTreinador && tqrHoje && !tqrHoje.respondido) {
+    painel.innerHTML = '<p style="color:var(--text-dim)">Complete o check-in diário para continuar.</p>';
+    abrirModalTqrObrigatorio();
+    return;
+  }
 
   painel.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -1335,6 +1670,22 @@ async function renderPainelAluno(usuarioAluno, nomeAluno, souTreinador) {
     <div class="chart-wrap"><h3>Ondulação diária de carga (semana atual)</h3><canvas id="chartCargaDiaria"></canvas></div>
     <div class="chart-wrap"><h3>Razão Agudo:Crônica (ACWR)</h3><canvas id="chartAcwr"></canvas></div>
     <div class="chart-wrap"><h3>Monotonia e Strain semanais</h3><canvas id="chartMonotoniaStrain"></canvas></div>
+
+    <div class="chart-wrap">
+      <h3>Bem-estar diário (TQR)</h3>
+      ${renderTqrResumoHoje(tqrHoje, souTreinador)}
+
+      <h4 style="margin:18px 0 8px;color:var(--gold-light);font-size:14px;">Médias do período</h4>
+      ${renderResumoPeriodoTqr('Esta semana', resumoSemanaTqr)}
+      ${renderResumoPeriodoTqr('Este mês', resumoMesTqr)}
+
+      <table>
+        <thead><tr><th>Data</th><th>Fadiga</th><th>Sono</th><th>Dor Musc.</th><th>Estresse</th><th>Humor</th><th>Alimentação</th><th>TQR</th></tr></thead>
+        <tbody>${tqrHistorico.slice().reverse().slice(0,14).map(t => `<tr>
+          <td>${formatarDataBR(t.data)}</td><td>${t.fadiga}</td><td>${t.sono}</td><td>${t.dor_muscular}</td><td>${t.estresse}</td><td>${t.humor}</td><td>${labelAlimentacao(t.alimentacao)}</td><td>${t.tqr}</td>
+        </tr>`).join('') || '<tr><td colspan="8" style="color:var(--text-dim)">Nenhum check-in registrado ainda.</td></tr>'}</tbody>
+      </table>
+    </div>
 
     <div class="chart-wrap">
       <h3>Últimas sessões</h3>
